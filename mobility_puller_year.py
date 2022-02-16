@@ -210,10 +210,12 @@ def create_mask(images):
     for surface, years in images.items():
         for year, ims in years.items():
             for i, im in enumerate(ims):
-                if i == 0:
+                im = im.astype(int)
+                if year == 1985:
                     masks[surface] = im
                 else:
                     masks[surface] = np.add(masks[surface], im)
+        masks[surface][masks[surface] > 0] = 1
 
     return masks
 
@@ -338,6 +340,8 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
                 years.append(year)
 
         for j, im in enumerate(all_images):
+            where = np.where(~channel_belt)
+            im[where] = 0
             # Get the baseline
             if j == 0:
                 baseline = im.astype(int)
@@ -428,9 +432,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    polygon_path = f'/Users/Evan/Documents/Mobility/GIS/Lhasa_small_area.gpkg'
-    out_root = f'/Users/Evan/Documents/Mobility/GIS/surface_water/test'
-
 #    yearly_mobility, monthly_mobility = main(polygon_path, out_root)
 
     year_range = [i for i in range(args.start, args.end + 1)]
@@ -460,3 +461,12 @@ if __name__ == '__main__':
 # #
 # #    axs[0].plot(month_df_0['dt'], month_df_0['O_Phi'])
 # #    plt.show()
+
+
+#    # Testing
+#    from matplotlib import pyplot as plt
+#    polygon_path = '/Users/Evan/Documents/Mobility/GIS/Taiwan/Taiwan1/Taiwan1.gpkg'
+#    out_root = '/Users/Evan/Documents/Mobility/GIS/Testing'
+#    year_range = [i for i in range(1990, 2020)]
+#    keep = 'true'
+#    river = 'Taiwan1'

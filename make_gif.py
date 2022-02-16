@@ -14,12 +14,13 @@ import matplotlib.gridspec as gridspec
 from matplotlib.patches import Patch
 
 # filepaths
-fp = sorted(glob.glob('/Users/Evan/Documents/Mobility/GIS/brahmaputra/brahm6/*.csv'))[0]
-fp_in = "/Users/Evan/Documents/Mobility/GIS/brahmaputra/brahm6/temps/*.tif"
-fp_out = "/Users/Evan/Documents/Mobility/GIS/brahmaputra/brahm6/brahm6_cumulative.gif"
+fp = sorted(glob.glob('/Users/Evan/Documents/Mobility/GIS/Taiwan/Taiwan3/*.csv'))[0]
+fp_in = "/Users/Evan/Documents/Mobility/GIS/Taiwan/Taiwan3/temps/*.tif"
+fp_out = "/Users/Evan/Documents/Mobility/GIS/Taiwan/Taiwan3/taiwan3_cumulative.gif"
 
 # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#gif
 imgs = [f for f in natsorted(glob.glob(fp_in))]
+df = pandas.read_csv(fp)
 
 years = {}
 for im in imgs:
@@ -29,9 +30,11 @@ for im in imgs:
     else:
         years[year] = im
 
-year_keys = list(years.keys())
-year_keys = year_keys[:5]
-[years.pop(key) for key in year_keys]
+year_keys = list(df['year'])
+years_filt = {}
+for key in year_keys:
+    years_filt[key] = years[str(key)]
+years = years_filt
 year_keys = list(years.keys())
 imgs = []
 agrs = []
@@ -61,7 +64,6 @@ for year, file in years.items():
     combos.append(combo)
 
 # METHOD 2
-df = pandas.read_csv(fp)
 images = []
 legend_elements = [
     Patch(color='#ad2437', label='Visited Pixels'),
@@ -106,5 +108,4 @@ for i, ag in enumerate(combos):
 plt.close('all')
 
 img, *imgs = images 
-img.save(fp=fp_out, format='GIF', append_images=imgs,
-         save_all=True, duration=400, loop=1)
+img.save(fp=fp_out, format='GIF', append_images=imgs,         save_all=True, duration=400, loop=1)
