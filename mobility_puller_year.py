@@ -307,7 +307,7 @@ def get_mobility_stats(j, A, channel_belt, baseline,
     # Calculate Zeta dt = 1
     zeta = DB2_DB1 / (2 * A * dt)
 
-    return D, D_A, PHI, O_PHI, fR, zeta, fb
+    return D, D_A, PHI, O_PHI, fR, zeta, fb, fw_b, fd_b
 
 
 def get_mobility_yearly(images, clean_channel_belts, year_range):
@@ -320,6 +320,8 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
         'O_Phi': [],
         'fR': [],
         'zeta': [],
+        'fw_b': [],
+        'fd_b': [],
     }
     for i, (surface, all_years) in enumerate(images.items()):
         print()
@@ -358,7 +360,7 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
             if j == 0:
                 fb = channel_belt - baseline
 
-            D, D_A, PHI, O_PHI, fR, zeta, fb = get_mobility_stats(
+            D, D_A, PHI, O_PHI, fR, zeta, fb, fw_b, fd_b = get_mobility_stats(
                 j,
                 A,
                 channel_belt,
@@ -376,6 +378,8 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
             data['O_Phi'].append(O_PHI)
             data['fR'].append(fR)
             data['zeta'].append(zeta)
+            data['fw_b'].append(fw_b)
+            data['fd_b'].append(fd_b)
         data['year'] = years
 
     return pandas.DataFrame(data=data)

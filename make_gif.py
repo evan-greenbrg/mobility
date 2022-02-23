@@ -21,7 +21,7 @@ def func(x, a, m, p):
 
 def fit_curve(x, y):
     # Fitting
-    popt, pcov = curve_fit(func, x, y, p0=[1, .00001, 0], maxfev=1000)
+    popt, pcov = curve_fit(func, x, y, p0=[1, .00001, 0], maxfev=10000)
     # R-squared
     residuals = y - func(x, *popt)
     ss_res = np.sum(residuals**2)
@@ -88,11 +88,23 @@ def main(fp, fp_in, fp_out, stat_out):
     )
     zeta_median = df['zeta'].median()
 
+    fw_b = df['fw_b'].median()
+    o_phi = df['O_Phi'].median()
+    phi = df['Phi'].median()
+    fr = df['fR'].median()
+    fd_b = df['fd_b'].median()
+
+    tao_ch = (fw_b * (1 - (phi / 2)) * (1 - o_phi)) / zeta_median
+    tao_f = (fd_b * fr) / zeta_median
+
+
     stats = pandas.DataFrame(data={
         'Type': ['Value', 'Rsquared'],
         'M': [round(m, 4), round(o_r2, 4)],
         'R': [round(r, 4), round(f_r2, 4)],
         'zeta': [round(zeta_median, 4), None],
+        'tao_ch': [round(tao_ch, 4), None],
+        'tao_f': [round(tao_f, 4), None],
     })
     stats.to_csv(stat_out)
 
@@ -153,55 +165,22 @@ def main(fp, fp_in, fp_out, stat_out):
     img, *imgs = images 
     img.save(fp=fp_out, format='GIF', append_images=imgs,         save_all=True, duration=400, loop=1)
 
-# Rivers
-# X Apalachicola_River
-# X Beatton
-# X Chickasawhay
-# X Escambia
-# Indus
-# Kazak1
-# Milk_River
-# Minnesota_River_Downstream
-# Minnesota_River_Upststream
-# Ocmulgee
-# Okavango_River
-# Pearl
-# Pembina
-# Ramganga_River
-# Sacramento_River
-# Strickland_River
-# Tarim
-# Wabash_River
-# Watut_River
-# White_River
-# Yellow_River
-
 rivers = [
-    'Kazak1',
-    'Milk_River',
-    'Minnesota_River_Downstream',
-    'Minnesota_River_Upstream',
-    'Ocmulgee',
-    'Okavango_River',
-    'Pearl',
-    'Pembina',
-    'Ramganga_River',
-    'Sacramento_River',
-    'Strickland_River',
-    'Tarim',
-    'Wabash_River',
-    'Watut_River',
-    'White_River',
-    'Yellow_River',
+    'Watut1',
+    'Watut2',
+    'Watut3',
+    'Watut4',
+    'Watut5',
+    'Watut6',
 ]
 for river in rivers:
     print()
     print(river)
     print()
-    fp = sorted(glob.glob(f'//home/greenberg/ExtraSpace/PhD/Projects/Mobility/GIS/Comparing/Rivers/{river}/*mobility.csv'))[0]
-    fp_in = f'/home/greenberg/ExtraSpace/PhD/Projects/Mobility/GIS/Comparing/Rivers/{river}/temps/*.tif'
-    fp_out = f'/home/greenberg/ExtraSpace/PhD/Projects/Mobility/GIS/Comparing/Rivers/{river}/{river}_cumulative.gif'
-    stat_out = f'/home/greenberg/ExtraSpace/PhD/Projects/Mobility/GIS/Comparing/Rivers/{river}/{river}_mobility_stats.csv'
+    fp = sorted(glob.glob(f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut/{river}/*mobility.csv'))[0]
+    fp_in = f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut/{river}/temps/*.tif'
+    fp_out = f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut/{river}/{river}_cumulative.gif'
+    stat_out = f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut/{river}/{river}_mobility_stats.csv'
 
     main(fp, fp_in, fp_out, stat_out)
 

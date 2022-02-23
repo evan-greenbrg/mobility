@@ -31,61 +31,7 @@ def getSurfaceWater(year, polygon):
     )
 
 
-def get_baxis(p):
-    mbr_points = list(zip(
-        *p.minimum_rotated_rectangle.exterior.coords.xy
-    ))
-
-    mbr_lines = [
-        LineString((mbr_points[i], mbr_points[i+1]))
-        for i in range(len(mbr_points) - 1)
-    ]
-
-    mbr_lengths = [
-        LineString((mbr_points[i], mbr_points[i+1])).length
-        for i in range(len(mbr_points) - 1)
-    ]
-    baxis = mbr_lines[np.argmin(mbr_lengths)]
-    slope = (
-        (baxis.xy[0][1] - baxis.xy[0][0])
-        / (baxis.xy[1][1] - baxis.xy[1][0])
-    )
-
-    return slope
-
-
-def find_split(center, slope, length=2):
-    xs = [center[0][0]]
-    ys = [center[1][0]]
-    for i in range(1, length):
-        xs.append(center[0][0] + i)
-        xs.append(center[0][0] - i)
-
-        ys.append(center[1][0] + (i * slope))
-        ys.append(center[1][0] - (i * slope))
-
-    points = np.swapaxes(np.array([xs, ys]), 0, 1)
-    line = LineString(points)
-
-    return line
-
-
-def split_polygon(geom, iterations):
-    polys = [Polygon(geom['coordinates'][0])]
-    print(iterations)
-    for i in range(iterations):
-        new_polys = []
-        for p in polys:
-            slope = get_baxis(p)
-            center = p.centroid.xy
-            line = find_split(center, slope, length=2)
-            new_polys += [new_p for new_p in ops.split(p, line)]
-        polys = new_polys
-    for poly in polys:
-        yield poly
-
-
-def pull_esa(polygon_path, out_root, river):
+def pull_esa(polygon_path, out_root):
     years = [i for i in range(1985, 2020)]
 
     polygon_name = polygon_path.split('/')[-1].split('.')[0]
@@ -267,7 +213,7 @@ def get_mobility_stats(j, A, channel_belt, baseline,
     # Calculate Zeta dt = 1
     zeta = DB2_DB1 / (2 * A * dt)
 
-    return D, D_A, PHI, O_PHI, fR, zeta, fb
+    return D, D_A, PHI, O_PHI, fR, zeta, fb, fw_b, fd_b
 
 
 def get_mobility_yearly(images, clean_channel_belts, year_range):
@@ -284,6 +230,8 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
             'O_Phi': [],
             'fR': [],
             'zeta': [],
+            'fw_b': [],
+            'fd_b': [],
         }
         print()
         print(river)
@@ -319,7 +267,7 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
             if j == 0:
                 fb = channel_belt - baseline
 
-            D, D_A, PHI, O_PHI, fR, zeta, fb = get_mobility_stats(
+            D, D_A, PHI, O_PHI, fR, zeta, fb, fw_b, fd_b = get_mobility_stats(
                 j,
                 A,
                 channel_belt,
@@ -337,6 +285,8 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
             data['O_Phi'].append(O_PHI)
             data['fR'].append(fR)
             data['zeta'].append(zeta)
+            data['fw_b'].append(fw_b)
+            data['fd_b'].append(fd_b)
         data['year'] = years
         river_dfs[river] = pandas.DataFrame(data=data)
 
@@ -344,7 +294,7 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
 
 
 def main(polygon_path, out_root, keep, year_range):
-    paths = pull_esa(polygon_path, out_root, river)
+    paths = pull_esa(polygon_path, out_root)
     images, metas = clean_esa(paths)
     channel_belts = create_mask(images)
     clean_channel_belts = cleanChannel(channel_belts, 100000)
@@ -375,12 +325,11 @@ def main(polygon_path, out_root, keep, year_range):
 
 
 if __name__ == '__main__':
-    polygon_path = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/GIS/Comparing/RiverShapes.gpkg'
-    out_root = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/GIS/Comparing/Rivers/{}'
+    polygon_path = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut.gpkg'
+    out_root = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut/{}'
     year_range = [i for i in range(1990, 2020)]
     keep = 'true'
 
-    year_range = [i for i in range(args.start, args.end + 1)]
     river_dfs = main(
         polygon_path, 
         out_root, 
