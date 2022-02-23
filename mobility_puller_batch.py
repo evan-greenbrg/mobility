@@ -325,8 +325,8 @@ def main(polygon_path, out_root, keep, year_range):
 
 
 if __name__ == '__main__':
-    polygon_path = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut.gpkg'
-    out_root = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut/{}'
+    polygon_path = '/Users/Evan/Documents/Mobility/GIS/Taiwan_Batch/Taiwan.gpkg'
+    out_root = '/Users/Evan/Documents/Mobility/GIS/Taiwan_Batch/{}'
     year_range = [i for i in range(1990, 2020)]
     keep = 'true'
 

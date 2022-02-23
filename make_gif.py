@@ -166,21 +166,48 @@ def main(fp, fp_in, fp_out, stat_out):
     img.save(fp=fp_out, format='GIF', append_images=imgs,         save_all=True, duration=400, loop=1)
 
 rivers = [
-    'Watut1',
-    'Watut2',
-    'Watut3',
-    'Watut4',
-    'Watut5',
-    'Watut6',
+ #   'Dajia1',
+ #   'Tamsui1',
+ #   'Tamsui2',
+ #   'Tamsui3',
+ #   'Touqian1',
+ #   'Touqian2',
+ #   'Unknown1_1',
+ #   'Unknown1_2',
+ #   'Unknown1_3',
+ #   'Unknown2_1',
+ #   'Unknown2_2',
+ #   'Unknown3_1',
+ #   'Unknown4_1',
+ #   'Unknown4_2',
+ #   'Unknown5_1',
+ #   'Unknown6_1',
+ #   'Unknown6_2',
+ #   'Unknown7_1',
+ #   'Unknown7_2',
+ #   'Unknown7_3',
+ #   'Unknown7_4',
+ #   'Unknown8_1',
+ #   'Unknown8_2',
+ #   'Unknown8_3',
+ #   'Unknown8_4',
+ #   'Zengwen1',
+ #   'Zengwen2',
+ #   'Zengwen3',
+ #   'Zengwen4',
+#    'Zhuoshui1',
+    'Zhuoshui2',
+    'Zhuoshui3',
+    'Zhuoshui4',
 ]
 for river in rivers:
     print()
     print(river)
     print()
-    fp = sorted(glob.glob(f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut/{river}/*mobility.csv'))[0]
-    fp_in = f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut/{river}/temps/*.tif'
-    fp_out = f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut/{river}/{river}_cumulative.gif'
-    stat_out = f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/Watut/{river}/{river}_mobility_stats.csv'
+    fp = sorted(glob.glob(f'/Users/Evan/Documents/Mobility/GIS/Taiwan_Batch/{river}/*mobility.csv'))[0]
+    fp_in = f'/Users/Evan/Documents/Mobility/GIS/Taiwan_Batch/{river}/temps/*.tif'
+    fp_out = f'/Users/Evan/Documents/Mobility/GIS/Taiwan_Batch/{river}/{river}_cumulative.gif'
+    stat_out = f'/Users/Evan/Documents/Mobility/GIS/Taiwan_Batch/{river}/{river}_mobility_stats.csv'
 
     main(fp, fp_in, fp_out, stat_out)
 

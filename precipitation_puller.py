@@ -154,7 +154,11 @@ def pull_data(polygon_path):
     with fiona.open(polygon_path, layer=polygon_name) as layer:
         for feature in layer:
             geom = feature['geometry']
-            data = {'year': [], 'mean annual cummulative precip [m]': []}
+            data = {
+                'year': [], 
+                'mean annual cummulative precip [m]': [],
+                'median annual precip [m]': []
+            }
             for y, year in enumerate(years):
                 print(year)
                 poly = ee.Geometry.Polygon(geom['coordinates'])
@@ -179,7 +183,7 @@ def pull_data(polygon_path):
 
                 data['year'].append(year)
                 data['mean annual cummulative precip [m]'].append(cum_mean_annual)
-                data['median annual recip [m]'].append(med_mean_annual)
+                data['median annual precip [m]'].append(med_mean_annual)
 
     return pandas.DataFrame(data)
 
@@ -189,5 +193,7 @@ out_root = '/Users/Evan/Documents/Mobility/GIS/Testing'
 df = pull_data(polygon_path)
 
 from matplotlib import pyplot as plt
-plt.plot(df['year'], df['mean annual cummulative precip [m]'])
+fig, axs = plt.subplots(2,1)
+axs[1].plot(df['year'], df['median annual recip [m]'])
+axs[0].plot(df['year'], df['mean annual cummulative precip [m]'])
 plt.show()
