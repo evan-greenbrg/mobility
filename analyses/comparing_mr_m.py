@@ -1,3 +1,4 @@
+import os
 import glob
 import pandas
 from scipy.optimize import curve_fit
@@ -68,297 +69,507 @@ def fit_regression(x, y):
     return params[1], params[0], r2
 
 
-root = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/{}/*/*mobility.csv'
-fps = glob.glob(root.format('Beni'))
+def main_plot(root, river_name):
 
-data = {
-    'Name': [],
-    'am': [],
-    'm': [],
-    'pm': [],
-    'o_r2': [],
-    'ar': [],
-    'r': [],
-    'pr': [],
-    'f_r2': [],
-}
-fig, axs = plt.subplots(2, 2)
-for fp in fps:
-    name = fp.split('/')[-2]
-    df = pandas.read_csv(fp)
+    path = os.path.join(root, '{}*/*mobility.csv')
+    fps = glob.glob(path.format(river_name))
 
-    df['x'] = df['year'] - df.iloc[0]['year']
+    data = {
+        'Name': [],
+        'am': [],
+        'm': [],
+        'pm': [],
+        'o_r2': [],
+        'ar': [],
+        'r': [],
+        'pr': [],
+        'f_r2': [],
+        'am2': [],
+        'm2': [],
+        'pm2': [],
+        'o_r2_2': [],
+        'ar2': [],
+        'r2': [],
+        'pr2': [],
+        'f_r2_2': [],
+        'av_am': [],
+        'av_m': [],
+        'av_pm': [],
+        'av_o_r2': [],
+        'av_ar': [],
+        'av_r': [],
+        'av_pr': [],
+        'av_f_r2': [],
+        'av_am2': [],
+        'av_m2': [],
+        'av_pm2': [],
+        'av_o_r2_2': [],
+        'av_ar2': [],
+        'av_r2': [],
+        'av_pr2': [],
+        'av_f_r2_2': [],
+    }
+    fig, axs = plt.subplots(2, 4, figsize=(12,6))
+    for fp in fps:
+        print(fp)
+        name = fp.split('/')[-2]
+        full_df = pandas.read_csv(fp)
+        full_df['O_Phi'] = full_df['O_Phi'].replace(0, .000001)
+        full_df['fR'] = full_df['fR'].replace(0, .000001)
 
-    # Fit curves to normalized overlap
-    am, m, pm, o_r2 = fit_curve(
-        df['x'],
-        df['O_Phi'].to_numpy(),
-        func
+        full_df_clean = pandas.DataFrame()
+        for group, df in full_df.groupby('range'):
+            df['x'] = df['year'] - df.iloc[0]['year']
+            full_df_clean = full_df_clean.append(df)
+
+        full_df = full_df_clean
+        full_df_clean = None
+
+        full_df = full_df.dropna(subset=['O_Phi', 'fR'])
+
+        avg_df = full_df.groupby('x').mean().reset_index(drop=False)
+
+        # Fit curves to normalized overlap
+        am, m, pm, o_r2 = fit_curve(
+            full_df['x'],
+            full_df['O_Phi'].to_numpy(),
+            func
+        )
+
+        ar, r, pr, f_r2 = fit_curve(
+            full_df['x'],
+            1 - full_df['fR'].to_numpy(),
+            func
+        )
+
+        am2, m2, pm2, o_r2_2 = fit_curve(
+            full_df['x'],
+            full_df['O_Phi'].to_numpy(),
+            func2
+        )
+
+        ar2, r2, pr2, f_r2_2 = fit_curve(
+            full_df['x'],
+            1 - full_df['fR'].to_numpy(),
+            func2
+        )
+
+        # Fit avg curves to normalized overlap
+        av_am, av_m, av_pm, av_o_r2 = fit_curve(
+            avg_df['x'],
+            avg_df['O_Phi'].to_numpy(),
+            func
+        )
+
+        av_ar, av_r, av_pr, av_f_r2 = fit_curve(
+            avg_df['x'],
+            1 - avg_df['fR'].to_numpy(),
+            func
+        )
+
+        av_am2, av_m2, av_pm2, av_o_r2_2 = fit_curve(
+            avg_df['x'],
+            avg_df['O_Phi'].to_numpy(),
+            func2
+        )
+
+        av_ar2, av_r2, av_pr2, av_f_r2_2 = fit_curve(
+            avg_df['x'],
+            1 - avg_df['fR'].to_numpy(),
+            func2
+        )
+
+        xgrid = np.array([i for i in range(0, 30)])
+        ypred_m = func(xgrid, am, m, pm)
+        ypred_r = func(xgrid, ar, r, pr)
+        ypred_m2 = func2(xgrid, am2, m2, pm2)
+        ypred_r2 = func2(xgrid, ar2, r2, pr2)
+        av_ypred_m = func(xgrid, av_am, av_m, av_pm)
+        av_ypred_r = func(xgrid, av_ar, av_r, av_pr)
+        av_ypred_m2 = func2(xgrid, av_am2, av_m2, av_pm2)
+        av_ypred_r2 = func2(xgrid, av_ar2, av_r2, av_pr2)
+
+        axs[0, 0].plot(xgrid, ypred_m)
+        axs[0, 0].scatter(
+            full_df['x'], 
+            full_df['O_Phi'], 
+            label=name,
+            facecolor='white',
+            edgecolor='black',
+            s=10
+        )
+        axs[0, 0].plot(
+            avg_df['x'],
+            avg_df['O_Phi'],
+            color='black'
+        )
+        axs[0, 0].scatter(
+            avg_df['x'],
+            avg_df['O_Phi'],
+            color='black',
+            s=35
+        )
+
+
+        axs[1, 0].plot(xgrid, ypred_r)
+        axs[1, 0].scatter(
+            full_df['x'], 
+            1 - full_df['fR'], 
+            label=name,
+            facecolor='white',
+            edgecolor='black',
+            s=10
+        )
+        axs[1, 0].plot(
+            avg_df['x'],
+            1 - avg_df['fR'],
+            color='black'
+        )
+        axs[1, 0].scatter(
+            avg_df['x'],
+            1 - avg_df['fR'],
+            color='black',
+            s=35
+        )
+
+        axs[0, 1].plot(xgrid, ypred_m2)
+        axs[0, 1].scatter(
+            full_df['x'], 
+            full_df['O_Phi'], 
+            label=name,
+            facecolor='white',
+            edgecolor='black',
+            s=10
+        )
+        axs[0, 1].plot(
+            avg_df['x'],
+            avg_df['O_Phi'],
+            color='black'
+        )
+        axs[0, 1].scatter(
+            avg_df['x'],
+            avg_df['O_Phi'],
+            color='black',
+            s=35
+        )
+
+        axs[1, 1].plot(xgrid, ypred_r2)
+        axs[1, 1].scatter(
+            full_df['x'], 
+            1 - full_df['fR'], 
+            label=name,
+            facecolor='white',
+            edgecolor='black',
+            s=10
+        )
+        axs[1, 1].plot(
+            avg_df['x'],
+            1 - avg_df['fR'],
+            color='black'
+        )
+        axs[1, 1].scatter(
+            avg_df['x'],
+            1 - avg_df['fR'],
+            color='black',
+            s=35
+        )
+
+        axs[0, 2].plot(xgrid, av_ypred_m)
+        axs[0, 2].scatter(
+            full_df['x'], 
+            full_df['O_Phi'], 
+            label=name,
+            facecolor='white',
+            edgecolor='black',
+            s=10
+        )
+        axs[0, 2].plot(
+            avg_df['x'],
+            avg_df['O_Phi'],
+            color='black'
+        )
+        axs[0, 2].scatter(
+            avg_df['x'],
+            avg_df['O_Phi'],
+            color='black',
+            s=35
+        )
+
+
+        axs[1, 2].plot(xgrid, av_ypred_r)
+        axs[1, 2].scatter(
+            full_df['x'], 
+            1 - full_df['fR'], 
+            label=name,
+            facecolor='white',
+            edgecolor='black',
+            s=10
+        )
+        axs[1, 2].plot(
+            avg_df['x'],
+            1 - avg_df['fR'],
+            color='black'
+        )
+        axs[1, 2].scatter(
+            avg_df['x'],
+            1 - avg_df['fR'],
+            color='black',
+            s=35
+        )
+
+        axs[0, 3].plot(xgrid, av_ypred_m2)
+        axs[0, 3].scatter(
+            full_df['x'], 
+            full_df['O_Phi'], 
+            label=name,
+            facecolor='white',
+            edgecolor='black',
+            s=10
+        )
+        axs[0, 3].plot(
+            avg_df['x'],
+            avg_df['O_Phi'],
+            color='black'
+        )
+        axs[0, 3].scatter(
+            avg_df['x'],
+            avg_df['O_Phi'],
+            color='black',
+            s=35
+        )
+
+        axs[1, 3].plot(xgrid, av_ypred_r2)
+        axs[1, 3].scatter(
+            full_df['x'], 
+            1 - full_df['fR'], 
+            label=name,
+            facecolor='white',
+            edgecolor='black',
+            s=10
+        )
+        axs[1, 3].plot(
+            avg_df['x'],
+            1 - avg_df['fR'],
+            color='black'
+        )
+        axs[1, 3].scatter(
+            avg_df['x'],
+            1 - avg_df['fR'],
+            color='black',
+            s=35
+        )
+
+        axs[0,0].set_ylabel('Ophi')
+        axs[1,0].set_ylabel('1 - fR')
+        axs[1,1].set_xlabel('year')
+        axs[1,0].set_xlabel('year')
+
+        data['Name'].append(name)
+        data['am'].append(am)
+        data['m'].append(m)
+        data['pm'].append(pm)
+        data['o_r2'].append(o_r2)
+        data['ar'].append(ar)
+        data['r'].append(r)
+        data['pr'].append(pr)
+        data['f_r2'].append(f_r2)
+        data['am2'].append(am2)
+        data['m2'].append(m2)
+        data['pm2'].append(pm2)
+        data['o_r2_2'].append(o_r2_2)
+        data['ar2'].append(ar2)
+        data['r2'].append(r2)
+        data['pr2'].append(pr2)
+        data['f_r2_2'].append(f_r2_2)
+
+        data['av_am'].append(av_am)
+        data['av_m'].append(av_m)
+        data['av_pm'].append(av_pm)
+        data['av_o_r2'].append(av_o_r2)
+        data['av_ar'].append(av_ar)
+        data['av_r'].append(av_r)
+        data['av_pr'].append(av_pr)
+        data['av_f_r2'].append(av_f_r2)
+        data['av_am2'].append(av_am2)
+        data['av_m2'].append(av_m2)
+        data['av_pm2'].append(av_pm2)
+        data['av_o_r2_2'].append(av_o_r2_2)
+        data['av_ar2'].append(av_ar2)
+        data['av_r2'].append(av_r2)
+        data['av_pr2'].append(av_pr2)
+        data['av_f_r2_2'].append(av_f_r2_2)
+    river_df = pandas.DataFrame(data=data)
+    axs[0,0].text(
+        0, 
+        1.05,
+        f"3-Param M: {round(river_df['m'].mean(), 5)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[0,0].transAxes
+    )
+    axs[0,0].text(
+        .5, 
+        .95,
+        f"R2: {round(river_df['o_r2'].mean(), 3)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[0,0].transAxes
     )
 
-    # Rework fraction
-    ar, r, pr, f_r2 = fit_curve(
-        df['x'],
-        1 - df['fR'].to_numpy(),
-        func
+    axs[0,1].text(
+        0, 
+        1.05,
+        f"2-Param M: {round(river_df['m2'].mean(), 5)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[0,1].transAxes
+    )
+    axs[0,1].text(
+        .5, 
+        .95,
+        f"R2: {round(river_df['o_r2_2'].mean(), 3)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[0,1].transAxes
     )
 
-    am2, m2, pm2, o_r2_2 = fit_curve(
-        df['x'],
-        df['O_Phi'].to_numpy(),
-        func2
+    axs[1,0].text(
+        0, 
+        1.05,
+        f"3-Param R: {round(river_df['r'].mean(), 5)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[1,0].transAxes
+    )
+    axs[1,0].text(
+        .5, 
+        .95,
+        f"R2: {round(river_df['f_r2'].mean(), 3)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[1,0].transAxes
     )
 
-    # Rework fraction
-    ar2, r2, pr2, f_r2_2 = fit_curve(
-        df['x'],
-        1 - df['fR'].to_numpy(),
-        func2
+    axs[1,1].text(
+        0, 
+        1.05,
+        f"2-Param R: {round(river_df['r2'].mean(), 5)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[1,1].transAxes
+    )
+    axs[1,1].text(
+        .5, 
+        .95,
+        f"R2: {round(river_df['f_r2_2'].mean(), 3)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[1,1].transAxes
     )
 
-    xgrid = np.array([i for i in range(0, 30)])
-    ypred_m = func(xgrid, am, m, pm)
-    ypred_r = func(xgrid, ar, r, pr)
-    axs[0, 0].plot(xgrid, ypred_m)
-    axs[0, 0].scatter(df['x'], df['O_Phi'], label=name)
-    axs[1, 0].plot(xgrid, ypred_r)
-    axs[1, 0].scatter(df['x'], 1 - df['fR'], label=name)
-
-    ypred_m2 = func2(xgrid, am2, m2, pm2)
-    ypred_r2 = func2(xgrid, ar2, r2, pr2)
-    axs[0, 1].plot(xgrid, ypred_m2)
-    axs[0, 1].scatter(df['x'], df['O_Phi'], label=name)
-    axs[1, 1].plot(xgrid, ypred_r2)
-    axs[1, 1].scatter(df['x'], 1 - df['fR'], label=name)
-    axs[0,0].set_ylabel('Ophi')
-    axs[1,0].set_ylabel('1 - fR')
-    axs[1,1].set_xlabel('year')
-    axs[1,0].set_xlabel('year')
-
-    data['Name'].append(name)
-    data['am'].append(am)
-    data['m'].append(m)
-    data['pm'].append(pm)
-    data['o_r2'].append(o_r2)
-    data['ar'].append(ar)
-    data['r'].append(r)
-    data['pr'].append(pr)
-    data['f_r2'].append(f_r2)
-beni_df = pandas.DataFrame(data=data)
-plt.legend()
-plt.show()
-
-root = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/{}/*/*mobility.csv'
-fps = glob.glob(root.format('Escambia'))
-
-data = {
-    'Name': [],
-    'am': [],
-    'm': [],
-    'pm': [],
-    'o_r2': [],
-    'ar': [],
-    'r': [],
-    'pr': [],
-    'f_r2': [],
-}
-fig, axs = plt.subplots(2, 2)
-for fp in fps:
-    name = fp.split('/')[-2]
-    df = pandas.read_csv(fp)
-
-    df['x'] = df['year'] - df.iloc[0]['year']
-
-    # Fit curves to normalized overlap
-    am, m, pm, o_r2 = fit_curve(
-        df['x'],
-        df['O_Phi'].to_numpy(),
-        func
+    axs[0,2].text(
+        0, 
+        1.05,
+        f"Avg. 3-Param M: {round(river_df['av_m'].mean(), 5)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[0,2].transAxes
+    )
+    axs[0,2].text(
+        .5, 
+        .95,
+        f"R2: {round(river_df['av_o_r2'].mean(), 3)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[0,2].transAxes
     )
 
-    # Rework fraction
-    ar, r, pr, f_r2 = fit_curve(
-        df['x'],
-        1 - df['fR'].to_numpy(),
-        func
+    axs[0,3].text(
+        0, 
+        1.05,
+        f"Avg. 2-Param M: {round(river_df['av_m2'].mean(), 5)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[0,3].transAxes
+    )
+    axs[0,3].text(
+        .5, 
+        .95,
+        f"R2: {round(river_df['av_o_r2_2'].mean(), 3)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[0,3].transAxes
     )
 
-    am2, m2, pm2, o_r2_2 = fit_curve(
-        df['x'],
-        df['O_Phi'].to_numpy(),
-        func2
+    axs[1,2].text(
+        0, 
+        1.05,
+        f"Avg. 3-Param R: {round(river_df['av_r'].mean(), 5)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[1,2].transAxes
+    )
+    axs[1,2].text(
+        .5, 
+        .95,
+        f"R2: {round(river_df['av_f_r2'].mean(), 3)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[1,2].transAxes
     )
 
-    # Rework fraction
-    ar2, r2, pr2, f_r2_2 = fit_curve(
-        df['x'],
-        1 - df['fR'].to_numpy(),
-        func2
+    axs[1,3].text(
+        0, 
+        1.05,
+        f"Avg. 2-Param R: {round(river_df['av_r2'].mean(), 5)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[1,3].transAxes
+        )
+    axs[1,3].text(
+        .5, 
+        .95,
+        f"R2: {round(river_df['av_f_r2_2'].mean(), 3)}",
+        horizontalalignment='left', 
+        verticalalignment='center', 
+        transform=axs[1,3].transAxes
     )
 
-    xgrid = np.array([i for i in range(0, 30)])
-    ypred_m = func(xgrid, am, m, pm)
-    ypred_r = func(xgrid, ar, r, pr)
-    axs[0, 0].plot(xgrid, ypred_m)
-    axs[0, 0].scatter(df['x'], df['O_Phi'], label=name)
-    axs[1, 0].plot(xgrid, ypred_r)
-    axs[1, 0].scatter(df['x'], 1 - df['fR'], label=name)
-
-    ypred_m2 = func2(xgrid, am2, m2, pm2)
-    ypred_r2 = func2(xgrid, ar2, r2, pr2)
-    axs[0, 1].plot(xgrid, ypred_m2)
-    axs[0, 1].scatter(df['x'], df['O_Phi'], label=name)
-    axs[1, 1].plot(xgrid, ypred_r2)
-    axs[1, 1].scatter(df['x'], 1 - df['fR'], label=name)
-    axs[0,0].set_ylabel('Ophi')
-    axs[1,0].set_ylabel('1 - fR')
-    axs[1,1].set_xlabel('year')
-    axs[1,0].set_xlabel('year')
-
-    data['Name'].append(name)
-    data['am'].append(am)
-    data['m'].append(m)
-    data['pm'].append(pm)
-    data['o_r2'].append(o_r2)
-    data['ar'].append(ar)
-    data['r'].append(r)
-    data['pr'].append(pr)
-    data['f_r2'].append(f_r2)
-
-escambia_df = pandas.DataFrame(data=data)
-plt.legend()
-plt.show()
-
-root = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/{}/*/*mobility.csv'
-fps = glob.glob(root.format('Watut'))
-
-data = {
-    'Name': [],
-    'am': [],
-    'm': [],
-    'pm': [],
-    'o_r2': [],
-    'ar': [],
-    'r': [],
-    'pr': [],
-    'f_r2': [],
-}
-fig, axs = plt.subplots(2, 2)
-for fp in fps:
-    name = fp.split('/')[-2]
-    df = pandas.read_csv(fp)
-
-    df['x'] = df['year'] - df.iloc[0]['year']
-
-    # Fit curves to normalized overlap
-    am, m, pm, o_r2 = fit_curve(
-        df['x'],
-        df['O_Phi'].to_numpy(),
-        func
+    fig.suptitle(river_name)
+    plt.savefig(
+        os.path.join(root, f'{river_name}.png'),
+        format='png'
     )
-
-    # Rework fraction
-    ar, r, pr, f_r2 = fit_curve(
-        df['x'],
-        1 - df['fR'].to_numpy(),
-        func
-    )
-
-    am2, m2, pm2, o_r2_2 = fit_curve(
-        df['x'],
-        df['O_Phi'].to_numpy(),
-        func2
-    )
-
-    # Rework fraction
-    ar2, r2, pr2, f_r2_2 = fit_curve(
-        df['x'],
-        1 - df['fR'].to_numpy(),
-        func2
-    )
-
-    xgrid = np.array([i for i in range(0, 30)])
-    ypred_m = func(xgrid, am, m, pm)
-    ypred_r = func(xgrid, ar, r, pr)
-    axs[0, 0].plot(xgrid, ypred_m)
-    axs[0, 0].scatter(df['x'], df['O_Phi'], label=name)
-    axs[1, 0].plot(xgrid, ypred_r)
-    axs[1, 0].scatter(df['x'], 1 - df['fR'], label=name)
-
-    ypred_m2 = func2(xgrid, am2, m2, pm2)
-    ypred_r2 = func2(xgrid, ar2, r2, pr2)
-    axs[0, 1].plot(xgrid, ypred_m2)
-    axs[0, 1].scatter(df['x'], df['O_Phi'], label=name)
-    axs[1, 1].plot(xgrid, ypred_r2)
-    axs[1, 1].scatter(df['x'], 1 - df['fR'], label=name)
-
-    data['Name'].append(name)
-    data['am'].append(am)
-    data['m'].append(m)
-    data['pm'].append(pm)
-    data['o_r2'].append(o_r2)
-    data['ar'].append(ar)
-    data['r'].append(r)
-    data['pr'].append(pr)
-    data['f_r2'].append(f_r2)
-
-watut_df = pandas.DataFrame(data=data)
-plt.legend()
-plt.show()
+    plt.close('all')
+#    plt.show()
 
 
-xgrid = np.array([i for i in range(0, 30)])
-for i, row in beni_df.iterrows():
-    ypred = func(xgrid, row['am'], row['m'], row['pm'])
-    print(ypred)
-    plt.plot(xgrid, ypred, color='blue')
-for i, row in escambia_df.iterrows():
-    ypred = func(xgrid, row['am'], row['m'], row['pm'])
-    print(ypred)
-    plt.plot(xgrid, ypred, color='red')
-for i, row in watut_df.iterrows():
-    ypred = func(xgrid, row['am'], row['m'], row['pm'])
-    print(ypred)
-    plt.plot(xgrid, ypred, color='green')
-plt.show()
+root = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/big_compare/box_based_channel_belt'
 
-
-beni_mean = beni_df.mean()
-escambia_mean = escambia_df.mean()
-watut_mean = watut_df.mean()
-
-beni_r = beni_mean['r']
-escambia_r = escambia_mean['r']
-watut_r = watut_mean['r']
-
-beni_m = beni_mean['m']
-escambia_m = escambia_mean['m']
-watut_m = watut_mean['m']
-
-escambia_data = full[full['River'] == 'Escambia']
-beni_data = full[full['River'] == 'Rio_Beni']
-watut_data = full[full['River'] == 'Watut_River']
-
-fig, axs = plt.subplots(2,1)
-xgrid = np.arange(0, .2, .01)
-x = [escambia_data['Mr*'], beni_data['Mr*'], watut_data['Mr*']]
-y = [escambia_m, beni_m, watut_m]
-axs[0].scatter(x, y, color='black')
-axs[0].plot(xgrid, xgrid, color='black')
-axs[0].set_ylabel('M')
-axs[0].set_xlabel('Mr*')
-
-y = [escambia_r, beni_r, watut_r]
-axs[1].scatter(x, y, color='black')
-axs[1].plot(xgrid, xgrid, color='black')
-axs[1].set_ylabel('R')
-axs[1].set_xlabel('Mr*')
-plt.show()
-
-xgrid = np.array([i for i in range(0, 30)])
-for i, row in watut_df.iterrows():
-    ypred = func(xgrid, row['am'], row['m'], row['pm'])
-    print(ypred)
-    plt.plot(xgrid, ypred, label=row['Name'])
-plt.legend()
-plt.show()
+rivers = [
+    'Sabine',
+    'Red_River_Downstream',
+    'Brazos_River',
+    'Trinity_River',
+    'Willamette',
+    'Rio_Coco',
+    'Amazon_River',
+    'Rio_Solimoes',
+    'Rio_Jurua',
+    'Rio_Purus',
+    'Rio_Madre_de_Dios',
+    'Rio_Beni',
+    'Rio_Mamore',
+    'Aquapei_Reach_B',
+    'Rio_Xingu',
+    'Niger_River',
+    'Chad',
+    'Indus',
+    'Ramganga_River',
+    'Khowai_River',
+    'Kazak2',
+    'Kazak1',
+    'Uda',
+]
+for river in rivers:
+    main_plot(root, river)

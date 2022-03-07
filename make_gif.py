@@ -19,6 +19,10 @@ def func(x, a, m, p):
     return ((a - p) * np.exp(-m * x)) + p
 
 
+def func(x, a, m, p):
+    return ((a) * np.exp(-m * x))
+
+
 def fit_curve(x, y):
     # Fitting
     popt, pcov = curve_fit(func, x, y, p0=[1, .00001, 0], maxfev=10000)
@@ -30,9 +34,10 @@ def fit_curve(x, y):
 
     return (*popt), r_squared
 
+
 def main(fp, fp_in, fp_out, stat_out):
     imgs = [f for f in natsorted(glob.glob(fp_in))]
-    df = pandas.read_csv(fp)
+    full_df = pandas.read_csv(fp)
 
     years = {}
     for im in imgs:
@@ -42,7 +47,7 @@ def main(fp, fp_in, fp_out, stat_out):
         else:
             years[year] = im
 
-    year_keys = list(df['year'])
+    year_keys = list(full_df['year'].unique())
     years_filt = {}
     for key in year_keys:
         years_filt[key] = years[str(key)]
@@ -76,23 +81,32 @@ def main(fp, fp_in, fp_out, stat_out):
         combos.append(combo)
 
     # Get Curve fits 
-    df['x'] = df['year'] - df.iloc[0]['year']
+    full_df_clean = pandas.DataFrame()
+    for group, df in full_df.groupby('range'):
+        df['x'] = df['year'] - df.iloc[0]['year']
+        full_df_clean = full_df_clean.append(df)
+
+    full_df = full_df_clean
+    full_df_clean = None
+
+    avg_df = full_df.groupby('x').mean().reset_index(drop=False)
+
     am, m, pm, o_r2 = fit_curve(
-        df['x'],
-        df['O_Phi'].to_numpy()
+        full_df['x'],
+        full_df['O_Phi'].to_numpy()
     )
 
     ar, r, pr, f_r2 = fit_curve(
-        df['x'],
-        1 - df['fR'].to_numpy()
+        full_df['x'],
+        1 - full_df['fR'].to_numpy()
     )
-    zeta_median = df['zeta'].median()
+    zeta_median = full_df['zeta'].median()
 
-    fw_b = df['fw_b'].median()
-    o_phi = df['O_Phi'].median()
-    phi = df['Phi'].median()
-    fr = df['fR'].median()
-    fd_b = df['fd_b'].median()
+    fw_b = full_df['fw_b'].median()
+    o_phi = full_df['O_Phi'].median()
+    phi = full_df['Phi'].median()
+    fr = full_df['fR'].median()
+    fd_b = full_df['fd_b'].median()
 
     tao_ch = (fw_b * (1 - (phi / 2)) * (1 - o_phi)) / zeta_median
     tao_f = (fd_b * fr) / zeta_median
@@ -108,8 +122,8 @@ def main(fp, fp_in, fp_out, stat_out):
     })
     stats.to_csv(stat_out)
 
-    o_pred = func(df['x'], am, m, pm)
-    f_pred = func(df['x'], ar, r, pr)
+    o_pred = func(avg_df['x'], am, m, pm)
+    f_pred = func(avg_df['x'], ar, r, pr)
 
     # METHOD 2
     images = []
@@ -120,7 +134,7 @@ def main(fp, fp_in, fp_out, stat_out):
     ]
     #for i, ag in enumerate(agrs):
     for i, ag in enumerate(combos):
-        data = df.iloc[i]
+        data = avg_df.iloc[i]
         img_buf = io.BytesIO()
 
         fig = plt.figure(constrained_layout=True, figsize=(10,7))
@@ -134,27 +148,62 @@ def main(fp, fp_in, fp_out, stat_out):
         ax1.imshow(ag, cmap='Paired_r')
         ax1.legend(handles=legend_elements, loc='lower left', prop={'size': 10})
 
-        ax2.plot(df['year'], f_pred, zorder=1, color='blue')
-        ax2.scatter(df['year'], 1- df['fR'], zorder=2, color='black')
-        ax2.scatter(data['year'], 1- data['fR'], s=200, zorder=3, color='red')
+        ax2.plot(avg_df['x'], f_pred, zorder=5, color='blue')
+        ax2.scatter(full_df['x'], 1- full_df['fR'], zorder=2, s=50, facecolor='white', edgecolor='black')
+        ax2.scatter(data['x'], 1- data['fR'], s=200, zorder=3, color='red')
         ax2.set_ylim([0,1.1])
         ax2.set_ylabel('Remaining Rework Fraction')
-        ax2.text(2012, .95, f'R: {round(r, 2)}')
-        ax2.text(2012, .85, f'r-squared: {round(f_r2, 2)}')
+        ax2.text(
+            0.95, 
+            0.95,
+            f'R: {round(r, 2)}',
+            horizontalalignment='left', 
+            verticalalignment='center', 
+            transform=ax2.transAxes
+        )
+        ax2.text(
+            0.95, 
+            0.85,
+            f'r-squared: {round(f_r2, 2)}',
+            horizontalalignment='left', 
+            verticalalignment='center', 
+            transform=ax2.transAxes
+        )
 
-        ax3.plot(df['year'], o_pred, zorder=1, color='blue')
-        ax3.scatter(df['year'], df['O_Phi'], zorder=2, color='black')
-        ax3.scatter(data['year'], data['O_Phi'], s=200, zorder=3, color='red')
+        ax3.plot(avg_df['x'], o_pred, zorder=5, color='blue')
+        ax3.scatter(full_df['x'], full_df['O_Phi'], zorder=2, s=50, facecolor='white', edgecolor='black')
+        ax3.scatter(data['x'], data['O_Phi'], s=200, zorder=3, color='red')
         ax3.set_ylabel('Normalized Channel Overlap')
-        ax3.text(2012, .95, f'M: {round(m, 2)}')
-        ax3.text(2012, .85, f'r-squared: {round(o_r2, 2)}')
+        ax3.text(
+            0.95, 
+            0.95,
+            f'M: {round(m, 2)}',
+            horizontalalignment='left', 
+            verticalalignment='center', 
+            transform=ax3.transAxes
+        )
+        ax3.text(
+            0.95, 
+            0.85,
+            f'r-squared: {round(o_r2, 2)}',
+            horizontalalignment='left', 
+            verticalalignment='center', 
+            transform=ax3.transAxes
+        )
 
-        ax4.plot(df['year'], [zeta_median for i in df['year']])
-        ax4.scatter(df['year'], df['zeta'], zorder=2, color='black')
-        ax4.scatter(data['year'], data['zeta'], s=200, zorder=3, color='red')
+        ax4.plot(avg_df['x'], [zeta_median for i in avg_df['x']], zorder=5)
+        ax4.scatter(full_df['x'], full_df['zeta'], zorder=2, color='black')
+        ax4.scatter(data['x'], zeta_median, s=200, zorder=3, color='red')
         ax4.set_ylabel('Mobility Rate')
         ax4.set_xlabel('Year')
-        ax4.text(1990, 0, f'Zeta: {round(zeta_median, 2)}')
+        ax4.text(
+            0.95, 
+            0.95,
+            f'Zeta: {round(zeta_median, 2)}',
+            horizontalalignment='left', 
+            verticalalignment='center', 
+            transform=ax4.transAxes
+        )
     #    plt.show()
 
         plt.savefig(img_buf, format='png')
@@ -166,48 +215,16 @@ def main(fp, fp_in, fp_out, stat_out):
     img.save(fp=fp_out, format='GIF', append_images=imgs,         save_all=True, duration=400, loop=1)
 
 rivers = [
- #   'Dajia1',
- #   'Tamsui1',
- #   'Tamsui2',
- #   'Tamsui3',
- #   'Touqian1',
- #   'Touqian2',
- #   'Unknown1_1',
- #   'Unknown1_2',
- #   'Unknown1_3',
- #   'Unknown2_1',
- #   'Unknown2_2',
- #   'Unknown3_1',
- #   'Unknown4_1',
- #   'Unknown4_2',
- #   'Unknown5_1',
- #   'Unknown6_1',
- #   'Unknown6_2',
- #   'Unknown7_1',
- #   'Unknown7_2',
- #   'Unknown7_3',
- #   'Unknown7_4',
- #   'Unknown8_1',
- #   'Unknown8_2',
- #   'Unknown8_3',
- #   'Unknown8_4',
- #   'Zengwen1',
- #   'Zengwen2',
- #   'Zengwen3',
- #   'Zengwen4',
-#    'Zhuoshui1',
-    'Zhuoshui2',
-    'Zhuoshui3',
-    'Zhuoshui4',
+    'Andes',
 ]
 for river in rivers:
     print()
     print(river)
     print()
-    fp = sorted(glob.glob(f'/Users/Evan/Documents/Mobility/GIS/Taiwan_Batch/{river}/*mobility.csv'))[0]
-    fp_in = f'/Users/Evan/Documents/Mobility/GIS/Taiwan_Batch/{river}/temps/*.tif'
-    fp_out = f'/Users/Evan/Documents/Mobility/GIS/Taiwan_Batch/{river}/{river}_cumulative.gif'
-    stat_out = f'/Users/Evan/Documents/Mobility/GIS/Taiwan_Batch/{river}/{river}_mobility_stats.csv'
+    fp = sorted(glob.glob(f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Development/Andes1/{river}/*mobility.csv'))[0]
+    fp_in = f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Development/Andes1/{river}/temps/*.tif'
+    fp_out = f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Development/Andes1/{river}/{river}_cumulative.gif'
+    stat_out = f'/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Development/Andes1/{river}/{river}_mobility_stats.csv'
 
     main(fp, fp_in, fp_out, stat_out)
 

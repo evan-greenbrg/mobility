@@ -4,6 +4,7 @@ import ee
 import ee.mapclient
 import fiona
 import rasterio
+import rasterio.mask
 from shapely.geometry import Polygon, LineString
 from skimage import measure, draw
 from shapely import ops
@@ -123,6 +124,30 @@ def create_mask(images):
         masks[river][masks[river] > 0] = 1
 
     return masks
+
+
+def create_mask_shape(polygon_path, paths):
+    polygon_name = polygon_path.split('/')[-1].split('.')[0]
+    with fiona.open(polygon_path, layer=polygon_name) as layer:
+        masks = {}
+        for feature in layer:
+            river = feature['properties']['River']
+            geom = feature['geometry']
+
+            image = paths[river][0]
+            ds = rasterio.open(image)
+            out_image, out_transform = rasterio.mask.mask(
+                ds, [geom], 
+                crop=False, filled=False
+            )
+            out_image += 11
+            out_image[np.where(out_image < 10)] = 0
+            out_image[np.where(out_image > 10)] = 1
+
+            masks[river] = out_image[0,:,:]
+
+    return masks
+
 
 
 def cleanChannel(masks, thresh=3000):
@@ -299,7 +324,10 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
 def main(polygon_path, out_root, keep, year_range):
     paths = pull_esa(polygon_path, out_root)
     images, metas = clean_esa(paths)
-    channel_belts = create_mask(images)
+    # Implemented method
+#    channel_belts = create_mask(images)
+    # New method
+    channel_belts = create_mask_shape(polygon_path, paths)
     clean_channel_belts = cleanChannel(channel_belts, 100000)
     river_dfs = get_mobility_yearly(
         images,
@@ -336,8 +364,8 @@ def main(polygon_path, out_root, keep, year_range):
 
 
 if __name__ == '__main__':
-    polygon_path = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Development/PowderSizeTest.gpkg'
-    out_root = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Development/size_test/{}'
+    polygon_path = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Development/MigrationRateCompare.gpkg'
+    out_root = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/big_compare/box_based_channel_belt/{}'
     year_range = [i for i in range(1990, 2020)]
     keep = 'true'
 
