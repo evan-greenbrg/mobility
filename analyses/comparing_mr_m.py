@@ -1,4 +1,3 @@
-import os
 import glob
 import pandas
 from scipy.optimize import curve_fit

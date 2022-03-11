@@ -1,4 +1,5 @@
 import argparse
+import copy
 import os
 import ee
 import ee.mapclient
@@ -51,11 +52,19 @@ def pull_esa(polygon_path, out_root):
 
                 year_root = os.path.join(river_root, 'temps')
                 os.makedirs(year_root, exist_ok=True)
+
                 image = getSurfaceWater(year, poly)
                 out_path = os.path.join(
                     year_root,
                     f'{river}_{year}.tif'
                 )
+                downloaded = os.path.exists(out_path)
+                if downloaded:
+                    print()
+                    print('Already Exists')
+                    print()
+                    out_paths[river].append(out_path)
+                    continue
 
                 geemap.ee_export_image(
                     image,
@@ -69,9 +78,8 @@ def pull_esa(polygon_path, out_root):
                     out_paths[river].append(out_path)
                 else:
                     print()
-                    print()
+                    print(river)
                     print('Not Downloaded')
-                    print()
                     print()
 
 
@@ -92,6 +100,7 @@ def clean_esa(paths):
             ds = rasterio.open(fp)
             image = ds.read(1)
 
+            # Threshold
             water = image > 1
 
             dsmeta = ds.meta
@@ -134,7 +143,7 @@ def cleanChannel(masks, thresh=3000):
         assert(labels.max() != 0)
         # Find largest connected component
         channel = labels == np.argmax(np.bincount(labels.flat)[1:])+1
-        channel = fillHoles(channel, thresh)
+#        channel = fillHoles(channel, thresh)
 
         labels = measure.label(channel)
         # assume at least 1 CC
@@ -177,6 +186,22 @@ def crop_raster(raster, channel_belt):
     return raster
 
 
+def filter_images(images, clean_channel_belts, thresh=.2):
+    images_clean = {}
+    for river, years in images.items():
+        channel_belt = clean_channel_belts[river]
+        A = np.sum(channel_belt)
+        years_keep = copy.deepcopy(years)
+        for year, image in years.items():
+            frac = np.sum(image[np.where(channel_belt)]) / A
+            if frac < thresh:
+                years_keep.pop(year)
+
+        images_clean[river] = years_keep
+
+    return images_clean
+
+
 def get_mobility_stats(j, A, channel_belt, baseline,
                        step, step1, step2, fb, dt=1):
     # Calculate D - EQ. (1)
@@ -216,7 +241,7 @@ def get_mobility_stats(j, A, channel_belt, baseline,
     return D, D_A, PHI, O_PHI, fR, zeta, fb, fw_b, fd_b
 
 
-def get_mobility_yearly(images, clean_channel_belts, year_range):
+def get_mobility_yearly(images, clean_channel_belts):
     river_dfs = {}
     for i, (river, all_years) in enumerate(images.items()):
         river_dfs[river] = {}
@@ -229,6 +254,8 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
 
         # Find A
         A = len(np.where(channel_belt == 1)[1])
+
+        year_range = list(all_years.keys())
 
         # Combine the year steps
         ranges = [year_range[i:] for i, yr in enumerate(year_range)]
@@ -267,6 +294,12 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
                     step1 = np.zeros(step1.shape)
                     step2 = np.zeros(step2.shape)
 
+                # Get dt
+                if j < len(all_images) - 2:
+                    dt = int(year_range[j+2]) - int(year_range[j+1])
+                else:
+                    dt = 1
+
                 if j == 0:
                     fb = channel_belt - baseline
 
@@ -278,7 +311,8 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
                     step,
                     step1,
                     step2,
-                    fb
+                    fb,
+                    dt
                 )
 
                 data['i'].append(i)
@@ -296,15 +330,15 @@ def get_mobility_yearly(images, clean_channel_belts, year_range):
     return river_dfs 
 
 
-def main(polygon_path, out_root, keep, year_range):
+def main(polygon_path, out_root, keep):
     paths = pull_esa(polygon_path, out_root)
     images, metas = clean_esa(paths)
     channel_belts = create_mask(images)
-    clean_channel_belts = cleanChannel(channel_belts, 100000)
+    clean_channel_belts = cleanChannel(channel_belts, 1000)
+    clean_images = filter_images(images, clean_channel_belts, thresh=.1)
     river_dfs = get_mobility_yearly(
-        images,
+        clean_images,
         clean_channel_belts,
-        year_range
     )
 
     full_river_dfs = {}
@@ -336,16 +370,15 @@ def main(polygon_path, out_root, keep, year_range):
 
 
 if __name__ == '__main__':
-    polygon_path = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Development/PowderSizeTest.gpkg'
-    out_root = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Development/size_test/{}'
-    year_range = [i for i in range(1990, 2020)]
+    polygon_path = '/Users/Evan/Documents/Mobility/GIS/Development/LengthTest/BraidedLengthTest.gpkg'
+    out_root = '/Users/Evan/Documents/Mobility/GIS/Development/LengthTest/Braided_Rivers/{}'
+#    year_range = [i for i in range(1990, 2020)]
     keep = 'true'
 
     river_dfs = main(
         polygon_path, 
         out_root, 
-        keep,
-        year_range
+        keep
     )
 
     for river, df in river_dfs.items():

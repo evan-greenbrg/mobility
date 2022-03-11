@@ -52,11 +52,19 @@ def pull_esa(polygon_path, out_root):
 
                 year_root = os.path.join(river_root, 'temps')
                 os.makedirs(year_root, exist_ok=True)
+
                 image = getSurfaceWater(year, poly)
                 out_path = os.path.join(
                     year_root,
                     f'{river}_{year}.tif'
                 )
+                downloaded = os.path.exists(out_path)
+                if downloaded:
+                    print()
+                    print('Already Exists')
+                    print()
+                    out_paths[river].append(out_path)
+                    continue
 
                 geemap.ee_export_image(
                     image,
@@ -70,9 +78,8 @@ def pull_esa(polygon_path, out_root):
                     out_paths[river].append(out_path)
                 else:
                     print()
-                    print()
+                    print(river)
                     print('Not Downloaded')
-                    print()
                     print()
 
 
@@ -325,10 +332,10 @@ def main(polygon_path, out_root, keep, year_range):
     paths = pull_esa(polygon_path, out_root)
     images, metas = clean_esa(paths)
     # Implemented method
-#    channel_belts = create_mask(images)
+    channel_belts = create_mask(images)
     # New method
-    channel_belts = create_mask_shape(polygon_path, paths)
-    clean_channel_belts = cleanChannel(channel_belts, 100000)
+#    channel_belts = create_mask_shape(polygon_path, paths)
+    clean_channel_belts = cleanChannel(channel_belts, 100)
     river_dfs = get_mobility_yearly(
         images,
         clean_channel_belts,
@@ -364,8 +371,8 @@ def main(polygon_path, out_root, keep, year_range):
 
 
 if __name__ == '__main__':
-    polygon_path = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Development/MigrationRateCompare.gpkg'
-    out_root = '/Users/greenberg/Documents/PHD/Projects/Mobility/GIS/Comparing/big_compare/box_based_channel_belt/{}'
+    polygon_path = '/Users/Evan/Documents/Mobility/GIS/Development/Channel_Belt_Box/Channel_Belt_Box.gpkg'
+    out_root = '/Users/Evan/Documents/Mobility/GIS/Development/Channel_Belt_Box/water_based_channel_belt/{}'
     year_range = [i for i in range(1990, 2020)]
     keep = 'true'
 
