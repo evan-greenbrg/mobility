@@ -332,9 +332,9 @@ def main(polygon_path, out_root, keep, year_range):
     paths = pull_esa(polygon_path, out_root)
     images, metas = clean_esa(paths)
     # Implemented method
-    channel_belts = create_mask(images)
+#    channel_belts = create_mask(images)
     # New method
-#    channel_belts = create_mask_shape(polygon_path, paths)
+    channel_belts = create_mask_shape(polygon_path, paths)
     clean_channel_belts = cleanChannel(channel_belts, 100)
     river_dfs = get_mobility_yearly(
         images,

@@ -400,8 +400,8 @@ def main(polygon_path, out_root, keep):
 
 
 if __name__ == '__main__':
-    polygon_path = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Process/AvulsionTesting.gpkg'
-    out_root = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Process/avulsion_G25/{}'
+    polygon_path = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/GIS/Development/Test.gpkg'
+    out_root = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/GIS/Development/{}'
 #    year_range = [i for i in range(1990, 2020)]
     keep = 'true'
 

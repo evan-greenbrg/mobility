@@ -1,11 +1,13 @@
 import io
 import os
+from PIL import Image
 import glob
 import pandas
 from scipy.optimize import curve_fit
 import numpy as np
 import statsmodels.api as sm
 from matplotlib import pyplot as plt
+from sklearn.metrics import r2_score
 
 
 def func_3_param(x, a, m, p):
@@ -61,9 +63,9 @@ def fit_regression(x, y):
     return params[1], params[0], r2
 
 
-root = '/Users/Evan/Documents/Mobility/GIS/Development'
+root = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Process/avulsion_G25'
 fps = glob.glob(os.path.join(root, '*', '*mobility.csv'))
-fp = fps[1]
+fp = fps[0]
 
 full_df = pandas.read_csv(fp).groupby('range')
 data = {
@@ -108,15 +110,15 @@ stat_df = pandas.DataFrame(data=data)
 stat_df['year'] = stat_df['year'].astype(int)
 
 
-xcol = 'm_3'
-a = 'am_3'
-m = 'm_3'
-p = 'pm_3'
-scol = 'O_Phi'
+xcol = 'r_3'
+a = 'ar_3'
+m = 'r_3'
+p = 'pr_3'
+scol = 'fR'
 fun = func_3_param
 images = []
-fp_root = '/Users/Evan/Documents/Mobility/GIS/Development/MultiYearTaiwan1/'
-fp_name = 'MultiYearTaiwan1_timeseries_3_param_m.gif'
+fp_root = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Process/avulsion_G25/Combined'
+fp_name = 'Combined_cumulative_3_param_r.gif'
 fp_out = os.path.join(fp_root, fp_name)
 for (i, row), (year, df) in zip(stat_df.iterrows(), full_df):
     if i >= len(stat_df) - 2:

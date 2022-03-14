@@ -1,4 +1,3 @@
-import argparse
 import copy
 import os
 import ee
@@ -6,15 +5,12 @@ import ee.mapclient
 import fiona
 import rasterio
 import rasterio.mask
-from shapely.geometry import Polygon, LineString
 from skimage import measure, draw
-from shapely import ops
 import pandas
 import numpy as np
 import geemap as geemap
-import shutil
 from natsort import natsorted
-from matplotlib import pyplot as plt
+
 
 # ee.Authenticate()
 ee.Initialize()
@@ -83,7 +79,6 @@ def pull_esa(polygon_path, out_root):
                     print('Not Downloaded')
                     print()
 
-
     for key, item in out_paths.items():
         out_paths[key] = natsorted(item)
 
@@ -146,19 +141,19 @@ def create_mask_shape(polygon_path, paths):
             image = paths[river][0]
             ds = rasterio.open(image)
             out_image, out_transform = rasterio.mask.mask(
-                ds, [geom], 
+                ds, [geom],
                 crop=False, filled=False
             )
             out_image += 11
             out_image[np.where(out_image < 10)] = 0
             out_image[np.where(out_image > 10)] = 1
 
-            masks[river] = out_image[0,:,:]
+            masks[river] = out_image[0, :, :]
 
     return masks
 
 
-def cleanChannel(masks, thresh=3000):
+def clean_channel_belt(masks, thresh=100):
     clean_masks = {}
     for river, mask in masks.items():
         print(river)
@@ -262,7 +257,19 @@ def get_mobility_stats(j, A, channel_belt, baseline,
     # Calculate Zeta dt = 1
     zeta = DB2_DB1 / (2 * A * dt)
 
-    return D, D_A, PHI, O_PHI, fR, zeta, fb, fw_b, fd_b
+    stats = {
+        'D': D,
+        'D_A': D_A,
+        'PHI': PHI,
+        'O_PHI': O_PHI,
+        'fR': fR,
+        'zeta': zeta,
+        'fb': fb,
+        'fw_b': fw_b,
+        'fd_b': fd_b,
+    }
+
+    return stats
 
 
 def get_mobility_yearly(images, clean_channel_belts):
@@ -327,7 +334,7 @@ def get_mobility_yearly(images, clean_channel_belts):
                 if j == 0:
                     fb = channel_belt - baseline
 
-                D, D_A, PHI, O_PHI, fR, zeta, fb, fw_b, fd_b = get_mobility_stats(
+                stats = get_mobility_stats(
                     j,
                     A,
                     channel_belt,
@@ -340,81 +347,15 @@ def get_mobility_yearly(images, clean_channel_belts):
                 )
 
                 data['i'].append(i)
-                data['D'].append(D)
-                data['D/A'].append(D_A)
-                data['Phi'].append(PHI)
-                data['O_Phi'].append(O_PHI)
-                data['fR'].append(fR)
-                data['zeta'].append(zeta)
-                data['fw_b'].append(fw_b)
-                data['fd_b'].append(fd_b)
+                data['D'].append(stats['D'])
+                data['D/A'].append(stats['D_A'])
+                data['Phi'].append(stats['PHI'])
+                data['O_Phi'].append(stats['O_PHI'])
+                data['fR'].append(stats['fR'])
+                data['zeta'].append(stats['zeta'])
+                data['fw_b'].append(stats['fw_b'])
+                data['fd_b'].append(stats['fd_b'])
             data['year'] = years
             river_dfs[river][yrange[0]] = pandas.DataFrame(data=data)
 
-    return river_dfs 
-
-
-def main(polygon_path, out_root, keep):
-    paths = pull_esa(polygon_path, out_root)
-    images, metas = clean_esa(paths)
-
-    # Implemented method
-#    channel_belts = create_mask(images)
-    # New method
-    channel_belts = create_mask_shape(polygon_path, paths)
-
-    clean_channel_belts = cleanChannel(channel_belts, 100)
-    clean_images = filter_images(images, clean_channel_belts, thresh=.001)
-
-    river_dfs = get_mobility_yearly(
-        clean_images,
-        clean_channel_belts,
-    )
-
-    full_river_dfs = {}
-    for river, years in river_dfs.items():
-        full_df = pandas.DataFrame()
-        for year, df in years.items():
-            rnge = f"{year}_{df.iloc[-1]['year']}"
-            df['dt'] = pandas.to_datetime(
-                df['year'],
-                format='%Y'
-            )
-            df['range'] = rnge
-
-            full_df = full_df.append(df)
-
-        full_river_dfs[river] = full_df
-
-    if keep == 'true':
-        keep = True
-    elif keep == 'false':
-        keep = False
-
-    if not keep:
-        for river, files in paths.items():
-            for f in files:
-                os.remove(f)
-
-    return full_river_dfs 
-
-
-if __name__ == '__main__':
-    polygon_path = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Process/AvulsionTesting.gpkg'
-    out_root = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Process/avulsion_G25/{}'
-#    year_range = [i for i in range(1990, 2020)]
-    keep = 'true'
-
-    river_dfs = main(
-        polygon_path, 
-        out_root, 
-        keep
-    )
-
-    for river, df in river_dfs.items():
-        df.to_csv(
-            os.path.join(
-                out_root.format(river), 
-                f'{river}_yearly_mobility.csv'
-            )
-        )
+    return river_dfs

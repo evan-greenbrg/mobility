@@ -139,6 +139,7 @@ def main(fp, fp_in, fp_out, stat_out):
     ]
     #for i, ag in enumerate(agrs):
     for i, ag in enumerate(combos):
+        year = list(years.keys())[i]
         data = avg_df.iloc[i]
         img_buf = io.BytesIO()
 
@@ -149,6 +150,15 @@ def main(fp, fp_in, fp_out, stat_out):
         ax3 = fig.add_subplot(gs[1, 1])
 
         ax1.imshow(ag, cmap='Paired_r')
+        ax1.text(
+            0.05, 
+            0.95,
+            f'Year: {year}',
+            horizontalalignment='left', 
+            verticalalignment='center', 
+            transform=ax1.transAxes
+        )
+
         ax1.legend(
             handles=legend_elements, 
             loc='lower left', 
@@ -293,10 +303,11 @@ def main(fp, fp_in, fp_out, stat_out):
     )
 
 rivers = [
-    '18_Bar',
-    '20_BAR',
+    'Upstream',
+    'Downstream',
+    'Combined',
 ]
-root = '/Users/Evan/Documents/Mobility/GIS/Development/LengthTest/Braided_Rivers'
+root = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Process/avulsion_G25'
 for river in rivers:
     print()
     print(river)
