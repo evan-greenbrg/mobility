@@ -4,6 +4,7 @@ import os
 import ee
 import ee.mapclient
 import pandas
+from matplotlib import pyplot as plt
 
 from puller_fun import pull_esa
 from puller_fun import clean_esa
@@ -18,30 +19,60 @@ from gif_fun import make_gif
 ee.Initialize()
 
 
-def get_images(poly, gif, out):
-    out = os.path.join(out, '{}')
+def get_images(poly, gif, root):
+    out = os.path.join(root, '{}')
     paths = pull_esa(poly, out)
-    images, metas = clean_esa(paths)
-    channel_belts = create_mask_shape(
-        poly,
-        paths
+
+    missing_rivers = []
+    for river, items in paths.items():
+        if not items:
+            missing_rivers.append(river)
+
+    didnt_pull = os.path.join(
+        root,
+        f'error_rivers.txt'
     )
-    clean_channel_belts = clean_channel_belt(
-        channel_belts, 100
-    )
-    clean_images = filter_images(
-        images,
-        clean_channel_belts,
-        thresh=.000001
-    )
-    river_dfs = get_mobility_yearly(
-        clean_images,
-        clean_channel_belts,
-    )
-    full_river_dfs = {}
-    for river, years in river_dfs.items():
+    if missing_rivers:
+        with open(didnt_pull, 'w') as f:
+            for river in missing_rivers:
+                f.write(f'{river}\n')
+
+
+    paths = {k: v for k, v in paths.items() if v}
+
+    rivers = []
+    for river, path_list in paths.items():
+        print(river)
+
+        if not path_list:
+            continue
+
+        mask = create_mask_shape(
+            poly,
+            river,
+            path_list
+        )
+        clean_mask = clean_channel_belt(
+            mask, 100
+        )
+
+        images, metas = clean_esa(
+            poly, 
+            river, 
+            path_list
+        )
+
+        clean_images = filter_images(
+            images,
+            mask,
+            thresh=.0001
+        )
+        river_dfs = get_mobility_yearly(
+            clean_images,
+            clean_mask,
+        )
         full_df = pandas.DataFrame()
-        for year, df in years.items():
+        for year, df in river_dfs.items():
             rnge = f"{year}_{df.iloc[-1]['year']}"
             df['dt'] = pandas.to_datetime(
                 df['year'],
@@ -51,27 +82,23 @@ def get_images(poly, gif, out):
 
             full_df = full_df.append(df)
 
-        full_river_dfs[river] = full_df
+        if gif == 'true':
+            gif = True
+        elif gif == 'false':
+            gif = False
 
-    if gif == 'true':
-        gif = True
-    elif gif == 'false':
-        gif = False
-
-    if not gif:
-        for river, files in paths.items():
-            for f in files:
+        if not gif:
+            for f in path_list:
                 os.remove(f)
 
-    for river, df in full_river_dfs.items():
-        df.to_csv(
-            os.path.join(
-                out.format(river), 
-                f'{river}_yearly_mobility.csv'
-            )
+        out_path = os.path.join(
+            out.format(river), 
+            f'{river}_yearly_mobility.csv'
         )
+        full_df.to_csv(out_path)
+        rivers.append(river)
 
-    return list(full_river_dfs.keys())
+    return rivers
 
 
 def make_gifs(rivers, root):
@@ -104,5 +131,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     rivers = get_images(args.poly, args.gif, args.out)
-    if args.gif == 'true':
+    if (args.gif == 'true'):
         make_gifs(rivers, args.out)
+
+
+poly = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/ParameterSpace/Test.gpkg'
+gif = 'true'
+out = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/ParameterSpace/Test'
+
+rivers = get_images(poly, gif, out)
+make_gifs(rivers, out)

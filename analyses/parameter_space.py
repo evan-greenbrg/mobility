@@ -4,10 +4,10 @@ import pandas
 from matplotlib import pyplot as plt
 
 
-root = '/Users/Evan/Documents/Mobility/Parameter_space/Rivers'
+root = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/ParameterSpace/GaleazziRivers'
 fps = glob.glob(os.path.join(root, '*', '*stats.csv'))
 
-meta_df = pandas.read_csv('/Users/Evan/Documents/Mobility/Parameter_space/RiverLocations.csv')
+meta_df = pandas.read_csv('/home/greenberg/ExtraSpace/PhD/Projects/Mobility/ParameterSpace/GaleazziData.csv')
 
 data = {
     'River': [],
@@ -28,7 +28,7 @@ for fp in fps:
     print(river)
     river_type = meta_df[meta_df['River'] == river]
     if len(river_type) == 0:
-        river_type = 'Delta'
+        river_type = 'No Class'
     else:
         river_type = river_type['Type'].values[0]
     df = pandas.read_csv(fp)
@@ -40,16 +40,17 @@ for fp in fps:
 
 param_df = pandas.DataFrame(data=data)
 
-delta = param_df[param_df['Type'] == 'Delta']
-braided = param_df[param_df['Type'] == 'Braided']
-avulsion = param_df[param_df['Type'] == 'Avulsion']
+hs_wand = param_df[param_df['Type'] == 'High-Sinuosity-Wandering']
 meandering = param_df[param_df['Type'] == 'Meandering']
+ls_wand = param_df[param_df['Type'] == 'Low-Sinuosity-Wandering']
+braided = param_df[param_df['Type'] == 'Braided']
 
-
-# plt.scatter(delta['M_3'], delta['R_3'], marker='v')
-plt.scatter(braided['M_3'], braided['R_3'], marker='o', label='Braided', s=80, facecolor='red', edgecolor='black')
-plt.scatter(avulsion['M_3'], avulsion['R_3'], marker='s', label='Avulsion', s=80, facecolor='blue', edgecolor='black')
-plt.scatter(meandering['M_3'], meandering['R_3'], marker='*', label='Meandering', s=80, facecolor='green', edgecolor='black')
+mcol = 'M_3'
+rcol = 'R_3'
+plt.scatter(braided[mcol], braided[rcol], marker='o', label='Braided', s=80, facecolor='red', edgecolor='black')
+plt.scatter(hs_wand[mcol], hs_wand[rcol], marker='s', label='High-Sinuosity-Wandering', s=80, facecolor='blue', edgecolor='black')
+plt.scatter(meandering[mcol], meandering[rcol], marker='*', label='Meandering', s=80, facecolor='green', edgecolor='black')
+plt.scatter(ls_wand[mcol], ls_wand[rcol], marker='^', label='Low-Sinuosity-Wandering', s=80, facecolor='orange', edgecolor='black')
 plt.legend()
 plt.xlabel('M')
 plt.ylabel('R')
