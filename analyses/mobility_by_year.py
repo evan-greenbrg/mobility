@@ -1,3 +1,4 @@
+import random
 import io
 import os
 from PIL import Image
@@ -62,150 +63,124 @@ def fit_regression(x, y):
 
     return params[1], params[0], r2
 
-
-root = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Process/avulsion_G25'
+river = 'Taiwan1'
+root = f'/Users/greenberg/Documents/PHD/Projects/Mobility/TaiwanAnalysis/{river}'
 fps = glob.glob(os.path.join(root, '*', '*mobility.csv'))
-fp = fps[0]
+stat_dfs = pandas.DataFrame()
+full_dfs = {} 
+for fp in fps:
+    section = fp.split('/')[-2]
 
-full_df = pandas.read_csv(fp).groupby('range')
-data = {
-    'year': [],
-    'am_3': [],
-    'm_3': [],
-    'pm_3': [],
-    'ar_3': [],
-    'r_3': [],
-    'pr_3': [],
-    'am_2': [],
-    'm_2': [],
-    'pm_2': [],
-    'ar_2': [],
-    'r_2': [],
-    'pr_2': [],
-}
-for year, df in full_df:
-    year = year.split('_')[0]
-    data['year'].append(year)
-    if len(df) > 2:
-        am_3, m_3, pm_3, ar_3, r_3, pr_3 = get_stats(df, func_3_param)
-        am_2, m_2, pm_2, ar_2, r_2, pr_2 = get_stats(df, func_2_param)
-    else:
-        am_3 = m_3 = pm_3 = ar_3 = r_3 = pr_3 = None
-        am_2 = m_2 = pm_2 = ar_2 = r_2 = pr_3 = None
+    full_df = pandas.read_csv(fp)
+    full_df['section'] = section
+    full_df = full_df.groupby('range')
 
-    data['am_3'].append(am_3)
-    data['m_3'].append(m_3)
-    data['pm_3'].append(pm_3)
-    data['ar_3'].append(ar_3)
-    data['r_3'].append(r_3)
-    data['pr_3'].append(pr_3)
-    data['am_2'].append(am_2)
-    data['m_2'].append(m_2)
-    data['pm_2'].append(pm_2)
-    data['ar_2'].append(ar_2)
-    data['r_2'].append(r_2)
-    data['pr_2'].append(pr_2)
+    data = {
+        'year': [],
+        'am_3': [],
+        'm_3': [],
+        'pm_3': [],
+        'ar_3': [],
+        'r_3': [],
+        'pr_3': [],
+        'am_2': [],
+        'm_2': [],
+        'pm_2': [],
+        'ar_2': [],
+        'r_2': [],
+        'pr_2': [],
+    }
+    for year, df in full_df:
+        year = year.split('_')[0]
+        data['year'].append(year)
+        if len(df) > 2:
+            am_3, m_3, pm_3, ar_3, r_3, pr_3 = get_stats(df, func_3_param)
+            am_2, m_2, pm_2, ar_2, r_2, pr_2 = get_stats(df, func_2_param)
+        else:
+            am_3 = m_3 = pm_3 = ar_3 = r_3 = pr_3 = None
+            am_2 = m_2 = pm_2 = ar_2 = r_2 = pr_3 = None
 
-stat_df = pandas.DataFrame(data=data)
-stat_df['year'] = stat_df['year'].astype(int)
+        data['am_3'].append(am_3)
+        data['m_3'].append(m_3)
+        data['pm_3'].append(pm_3)
+        data['ar_3'].append(ar_3)
+        data['r_3'].append(r_3)
+        data['pr_3'].append(pr_3)
+        data['am_2'].append(am_2)
+        data['m_2'].append(m_2)
+        data['pm_2'].append(pm_2)
+        data['ar_2'].append(ar_2)
+        data['r_2'].append(r_2)
+        data['pr_2'].append(pr_2)
+
+    stat_df = pandas.DataFrame(data=data)
+    stat_df['year'] = stat_df['year'].astype(int)
+    stat_df['section'] = section
+
+    stat_dfs = stat_dfs.append(stat_df)
+    full_dfs[section] = full_df 
 
 
-xcol = 'r_3'
-a = 'ar_3'
-m = 'r_3'
-p = 'pr_3'
-scol = 'fR'
+xcol = 'm_3'
+a = 'am_3'
+m = 'm_3'
+p = 'pm_3'
+# scol = 'fR'
+scol = 'O_Phi'
 fun = func_3_param
 images = []
-fp_root = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Process/avulsion_G25/Combined'
+fp_root = f'/Users/greenberg/Documents/PHD/Projects/Mobility/TaiwanAnalysis/{river}'
 fp_name = 'Combined_cumulative_3_param_r.gif'
 fp_out = os.path.join(fp_root, fp_name)
-for (i, row), (year, df) in zip(stat_df.iterrows(), full_df):
-    if i >= len(stat_df) - 2:
-        continue
-    img_buf = io.BytesIO()
-    df = df.reset_index(drop=True)
-    fig, axs = plt.subplots(2,1, constrained_layout=True, figsize=(10, 7))
 
-    # Plot the data
-    axs[0].plot(
-        stat_df['year'], 
-        stat_df[xcol],
-        color='black',
-        zorder=1
+med = stat_dfs.groupby('year').median()
+lo = stat_dfs.groupby('year').quantile(.25)
+up = stat_dfs.groupby('year').quantile(.75)
+for section in stat_dfs['section'].unique():
+    temp = stat_dfs[stat_dfs['section'] == section]
+    plt.scatter(
+        temp['year'],
+        temp['m_3']
     )
-    axs[0].scatter(
-        row['year'], 
-        row[xcol], 
-        s=200, 
-        facecolor='red', 
-        edgecolor='black',
-        zorder=2
-    )
-    axs[1].plot(
-        [i for i in range(0, 30)], 
-        fun(
-            np.array([i for i in range(0, 30)]),
-            row[a],
-            row[m],
-            row[p]
-        ),
-        color='black',
-        zorder=1
-    )
-    if scol == 'O_Phi':
-        y = df[scol]
-    elif scol == 'fR':
-        y = 1 - df[scol]
-    axs[1].scatter(
-        df.index,
-        y,
-        s=200,
-        facecolor='white',
-        edgecolor='black'
-    )
-
-    # Some text
-    axs[0].text(
-        row['year'],
-        row[xcol] + .005,
-        f'Exponent: {round(row[m], 2)}',
-        horizontalalignment='left', 
-    )
-    r2 = r2_score(
-        df[scol],
-        fun(
-            df.index,
-            row[a],
-            row[m],
-            row[p]
-        )
-    )
-    axs[1].text(
-        .85,
-        .95,
-        f'R2: {round(r2, 2)}',
-        horizontalalignment='left', 
-        transform=axs[1].transAxes
-    )
-
-    # Labels
-    axs[0].set_xlabel('Year')
-    axs[0].set_ylabel(xcol)
-    axs[1].set_xlabel('Years from t0')
-    axs[1].set_ylabel(scol)
-
-    plt.savefig(img_buf, format='png')
-    plt.close('all')
-    images.append(Image.open(img_buf))
-
-img, *imgs = images 
-img.save(
-    fp=fp_out, 
-    format='GIF', 
-    append_images=imgs,         
-    save_all=True, 
-    duration=400, 
-    loop=100
+fig, axs = plt.subplots(3,1, constrained_layout=True, figsize=(10, 7))
+axs[0].plot(
+    med.index,
+    med['m_3'],
+    zorder=5,
+    color='red'
+)
+axs[0].fill_between(
+    med.index,
+    lo['m_3'],
+    up['m_3'],
+    zorder=-1,
+    color='lightgray',
 )
 
+axs[1].plot(
+    med.index,
+    med['r_2'],
+    zorder=5,
+    color='red'
+)
+axs[1].fill_between(
+    med.index,
+    lo['r_2'],
+    up['r_2'],
+    zorder=-1,
+    color='lightgray',
+)
+axs[2].plot(
+    med.index,
+    med['m_3'] / med['r_2'],
+    zorder=5,
+    color='red'
+)
+axs[2].fill_between(
+    med.index,
+    lo['m_3'] / up['r_2'],
+    up['m_3'] / lo['r_2'],
+    zorder=-1,
+    color='lightgray',
+)
+plt.show()

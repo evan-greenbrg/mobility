@@ -19,7 +19,7 @@ from gif_fun import make_gif
 ee.Initialize()
 
 
-def get_images(poly, gif, root):
+def get_images(poly, gif, filt, root):
     out = os.path.join(root, '{}')
     paths = pull_esa(poly, out)
 
@@ -65,7 +65,7 @@ def get_images(poly, gif, root):
         clean_images = filter_images(
             images,
             mask,
-            thresh=.0001
+            thresh=filt
         )
         river_dfs = get_mobility_yearly(
             clean_images,
@@ -126,18 +126,12 @@ if __name__ == '__main__':
     parser.add_argument('gif', metavar='gif', type=str,
                         choices=['true', 'false'],
                         help='Do you want to make the gif?')
+    parser.add_argument('filt', metavar='f', type=int, const=.0001,
+                        help='threshold for filtering channels')
     parser.add_argument('out', metavar='out', type=str,
                         help='output root directory')
     args = parser.parse_args()
 
-    rivers = get_images(args.poly, args.gif, args.out)
+    rivers = get_images(args.poly, args.gif, args.filt, args.out)
     if (args.gif == 'true'):
         make_gifs(rivers, args.out)
-
-
-poly = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/ParameterSpace/Test.gpkg'
-gif = 'true'
-out = '/home/greenberg/ExtraSpace/PhD/Projects/Mobility/ParameterSpace/Test'
-
-rivers = get_images(poly, gif, out)
-make_gifs(rivers, out)
