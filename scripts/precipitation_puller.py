@@ -1,10 +1,11 @@
+import glob
 import argparse
 import os
 import ee
 import ee.mapclient
 import fiona
 import rasterio
-from shapely.geometry import Polygon, LineString
+from shapely.geometry import Polygon, LineString, mapping, MultiPolygon
 from skimage import measure, draw
 from shapely import ops
 import pandas
@@ -146,7 +147,7 @@ def split_polygon(geom, iterations):
         yield poly
 
 
-def pull_data(polygon_path):
+def pull_data(polygon_path, out_root):
     years = [i for i in range(1985, 2020)]
 
     polygon_name = polygon_path.split('/')[-1].split('.')[0]
@@ -154,6 +155,7 @@ def pull_data(polygon_path):
     with fiona.open(polygon_path, layer=polygon_name) as layer:
         for feature in layer:
             geom = feature['geometry']
+            river = feature['properties']['River']
             data = {
                 'year': [], 
                 'mean annual cummulative precip [m]': [],
@@ -165,6 +167,30 @@ def pull_data(polygon_path):
 
                 if y == 0:
                     watershed = get_watershed(poly)
+                    save = np.array(watershed.getInfo()['coordinates'])
+                    if len(save.shape) == 1:
+                        polys = []
+                        for shape in save:
+                            polys.append(Polygon(np.array(shape)))
+                    else:
+                        save_watershed = np.squeeze(
+                            np.array(watershed.getInfo()['coordinates']),
+                            0
+                        )
+                        polys = [Polygon(save_watershed)]
+
+                    schema = {
+                        'geometry': 'Polygon',
+                        'properties': {'id': 'int'},
+                    }
+                    out = os.path.join(out_root, f'{river}_watershed.shp')
+                    with fiona.open(out, 'w', 'ESRI Shapefile', schema) as c:
+                       ## If there are multiple geometries, put the "for" loop here
+                       for i, poly in enumerate(polys):
+                           c.write({
+                               'geometry': mapping(poly),
+                               'properties': {'id': i},
+                           })                   
 
                 cum_image = generate_cum_precip_image(year, watershed)
                 med_image = generate_median_precip_image(year, watershed)
@@ -188,12 +214,13 @@ def pull_data(polygon_path):
     return pandas.DataFrame(data)
 
 
-polygon_path = '/Users/Evan/Documents/Mobility/GIS/Taiwan/Taiwan1/Taiwan1.gpkg'
-out_root = '/Users/Evan/Documents/Mobility/GIS/Testing'
-df = pull_data(polygon_path)
-
-from matplotlib import pyplot as plt
-fig, axs = plt.subplots(2,1)
-axs[1].plot(df['year'], df['median annual recip [m]'])
-axs[0].plot(df['year'], df['mean annual cummulative precip [m]'])
-plt.show()
+roots = natsorted(glob.glob('/Users/greenberg/Documents/PHD/Projects/Mobility/TaiwanAnalysis/*long'))
+for root in roots:
+    river = root.split('/')[-1]
+    print(river)
+    polygon_path = f'/Users/greenberg/Documents/PHD/Projects/Mobility/TaiwanAnalysis/{river}/{river}.gpkg'
+    out_root = f'/Users/greenberg/Documents/PHD/Projects/Mobility/TaiwanAnalysis/{river}'
+    
+    df = pull_data(polygon_path, out_root)
+    out_path = os.path.join(out_root, f'{river}_climate_data.csv')
+    df.to_csv(out_path)

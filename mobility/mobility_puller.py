@@ -126,7 +126,7 @@ if __name__ == '__main__':
     parser.add_argument('gif', metavar='gif', type=str,
                         choices=['true', 'false'],
                         help='Do you want to make the gif?')
-    parser.add_argument('filt', metavar='f', type=int, const=.0001,
+    parser.add_argument('filt', metavar='f', type=float, nargs='?', const=.0001,
                         help='threshold for filtering channels')
     parser.add_argument('out', metavar='out', type=str,
                         help='output root directory')
