@@ -225,7 +225,7 @@ def filter_images(images, mask, thresh=.2):
 
 
 def get_mobility_stats(j, A, channel_belt, baseline,
-                       step, step1, step2, fb, dt=1):
+                       step, step1, step2, fb, frac, dt=1):
     # Calculate D - EQ. (1)
     D = np.sum(np.abs(np.subtract(baseline, step)))
 
@@ -253,6 +253,7 @@ def get_mobility_stats(j, A, channel_belt, baseline,
     # THIS CALCULATION IS INCORRECT
     # Calculate fr
     fR = 1 - (Nb / (A * fd_b))
+    minusfR = (1 - fR) * frac
 
     # Calculate D(B+2) - D(B+1)
     DB2_DB1 = np.sum(np.abs(np.subtract(step1, step2)))
@@ -266,6 +267,7 @@ def get_mobility_stats(j, A, channel_belt, baseline,
         'PHI': PHI,
         'O_PHI': O_PHI,
         'fR': fR,
+        '1 - fR Norm': minusfR,
         'zeta': zeta,
         'fb': fb,
         'fw_b': fw_b,
@@ -285,73 +287,75 @@ def get_mobility_yearly(images, mask):
         data = {
             'year': [],
             'i': [],
+            'frac': [],
             'D': [],
             'D/A': [],
             'Phi': [],
             'O_Phi': [],
             'fR': [],
+            '1 - fR Norm': [],
+            'zeta': [],
             'fw_b': [],
             'fd_b': [],
         }
-        length = images[yrange[0]].shape[0]
-        width = images[yrange[0]].shape[1]
-        long = len(yrange)
-        all_images = np.empty((length, width, long))
+        all_images = []
         years = []
-        for j, year in enumerate(yrange):
+        for year in yrange:
             years.append(year)
-            im = images[str(year)]
+            all_images.append(images[str(year)])
+
+        for j, im in enumerate(all_images):
             where = np.where(~mask)
             im[where] = 0
-            all_images[:, :, j] = im
 
-        baseline = all_images[:, :, 0]
+            # Get the baseline
+            if j == 0:
+                baseline = im.astype(int)
 
-        w_b = len(np.where(baseline == 1)[0])
-        fb = mask - baseline
-        fw_b = w_b / A
-        fd_b = np.sum(fb) / A
-        Na = A * fd_b
+            # Get step
+            step = im.astype(int)
+            if j < len(all_images) - 2:
+                step1 = all_images[j+1].astype(int)
+                step2 = all_images[j+2].astype(int)
+            else:
+                step1 = np.zeros(step1.shape)
+                step2 = np.zeros(step2.shape)
 
-        for j in range(all_images.shape[2]):
-            im = all_images[:, :, j]
+            # Get dt
+            if j < len(all_images) - 2:
+                dt = int(year_range[j+2]) - int(year_range[j+1])
+            else:
+                dt = 1
 
-            kb = (
-                np.sum(all_images[:,:, :j + 1], axis=(2)) 
-                + mask
+            if j == 0:
+                fb = mask - baseline
+                frac = len(np.where(fb)[0]) / len(np.where(mask)[0])
+
+            stats = get_mobility_stats(
+                j,
+                A,
+                mask,
+                baseline,
+                step,
+                step1,
+                step2,
+                fb,
+                frac,
+                dt
             )
-            kb[np.where(kb != 1)] = 0
-            Nb = np.sum(kb)
-#            fR = 1 - (Nb / (A * fd_b))
-#            fR = (1 - ((Nb / (A * fd_b)))) * (fd_b**3)
-            fR = (Na / w_b) - (Nb / w_b) 
-
-            # Calculate D - EQ. (1)
-            D = np.sum(np.abs(np.subtract(baseline, im)))
-
-            # Calculate D / A
-            D_A = D / A
-
-            # Calculate Phi
-            w_t = len(np.where(im == 1)[0])
-            fw_t = w_t / A
-            fd_t = (A - w_t) / A
-
-            PHI = (fw_b * fd_t) + (fd_b * fw_t)
-
-            # Calculate O_Phi
-            O_PHI = 1 - (D / (A * PHI))
 
             data['i'].append(j)
-            data['D'].append(D)
-            data['D/A'].append(D_A)
-            data['Phi'].append(PHI)
-            data['O_Phi'].append(O_PHI)
-            data['fR'].append(fR)
-            data['fw_b'].append(fw_b)
-            data['fd_b'].append(fd_b)
+            data['frac'].append(frac)
+            data['D'].append(stats['D'])
+            data['D/A'].append(stats['D_A'])
+            data['Phi'].append(stats['PHI'])
+            data['O_Phi'].append(stats['O_PHI'])
+            data['fR'].append(stats['fR'])
+            data['1 - fR Norm'].append(stats['1 - fR Norm'])
+            data['zeta'].append(stats['zeta'])
+            data['fw_b'].append(stats['fw_b'])
+            data['fd_b'].append(stats['fd_b'])
         data['year'] = years
         river_dfs[yrange[0]] = pandas.DataFrame(data=data)
-
 
     return river_dfs
