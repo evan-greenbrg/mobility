@@ -18,11 +18,6 @@ def func_2_param(x, a, m, p):
     return (a * np.exp(m * x)) - a
 
 
-# def func_2_param(x, a, m, p):
-#     return ((a - p) * np.exp(-m * x)) + p
-#    return (a * np.exp(-m * x)) + p
-
-
 def fit_curve(x, y, fun):
     # Fitting
     popt, pcov = curve_fit(fun, x, y, p0=[1, 1, 1], maxfev=1000000)
@@ -90,8 +85,8 @@ def make_gif(fp, fp_in, fp_out, stat_out):
     full_df_clean = None
 #    full_df = full_df.dropna(subset=['x', 'O_Phi', 'fR'])
 
-#    avg_df = full_df.groupby('x').median().iloc[:20].reset_index(drop=False)
     avg_df = full_df.groupby('x').median().reset_index(drop=False).iloc[:20]
+#    avg_df = full_df.groupby('x').median().reset_index(drop=False)
     avg_df = avg_df.dropna(how='any')
 
     am_3, m_3, pm_3, o_r2_3 = fit_curve(
@@ -115,6 +110,7 @@ def make_gif(fp, fp_in, fp_out, stat_out):
 
     ar_2, r_2, pr_2, f_r2_2 = fit_curve(
         avg_df['x'],
+#        1 - avg_df['fR'].to_numpy(),
         avg_df['fR'].to_numpy(),
         func_2_param
     )
@@ -176,19 +172,12 @@ def make_gif(fp, fp_in, fp_out, stat_out):
             prop={'size': 10}
         )
 
-#         ax2.plot(
-#             avg_df['x'],
-#             f_pred_3,
-#             zorder=5,
-#             color='blue',
-#             label='3 Parameter'
-#         )
         ax2.plot(
             avg_df['x'],
-            f_pred_2,
+            f_pred_3,
             zorder=5,
             color='green',
-            label='2 Parameter'
+            label='3 Parameter'
         )
         ax2.scatter(
             avg_df['x'],
@@ -219,30 +208,13 @@ def make_gif(fp, fp_in, fp_out, stat_out):
         if i < len(avg_df):
             ax2.scatter(
                 data['x'],
-    #            1 - data['fR'],
+#                1 - data['fR'],
                 data['fR'],
                 s=200,
                 zorder=3,
                 color='red'
             )
-#        ax2.set_ylim([0, 1.1])
         ax2.set_ylabel('Remaining Rework Fraction')
-#        ax2.text(
-#            0.5,
-#            0.95,
-#            f'3-Param R: {round(r_3, 2)}',
-#            horizontalalignment='left',
-#            verticalalignment='center',
-#            transform=ax2.transAxes
-#        )
-#        ax2.text(
-#            0.5,
-#            0.9,
-#            f'3-Param R2: {round(f_r2_3, 2)}',
-#            horizontalalignment='left',
-#            verticalalignment='center',
-#            transform=ax2.transAxes
-#        )
         ax2.text(
             0.5,
             0.85,

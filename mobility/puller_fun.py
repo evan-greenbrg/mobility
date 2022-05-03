@@ -224,57 +224,6 @@ def filter_images(images, mask, thresh=.2):
     return images_keep
 
 
-def get_mobility_stats(j, A, channel_belt, baseline,
-                       step, step1, step2, fb, dt=1):
-    # Calculate D - EQ. (1)
-    D = np.sum(np.abs(np.subtract(baseline, step)))
-
-    # Calculate D / A
-    D_A = D / A
-
-    # Calculate Phi
-    w_b = len(np.where(baseline == 1)[0])
-    w_t = len(np.where(step == 1)[0])
-
-    fw_b = w_b / A
-    fw_t = w_t / A
-    fd_b = (A - w_b) / A
-    fd_t = (A - w_t) / A
-
-    PHI = (fw_b * fd_t) + (fd_b * fw_t)
-
-    # Calculate O_Phi
-    O_PHI = 1 - (D / (A * PHI))
-
-    # Calculate Np
-    fb = fb - step
-    Nb = len(np.where(fb == 1)[0])
-
-    # THIS CALCULATION IS INCORRECT
-    # Calculate fr
-    fR = 1 - (Nb / (A * fd_b))
-
-    # Calculate D(B+2) - D(B+1)
-    DB2_DB1 = np.sum(np.abs(np.subtract(step1, step2)))
-
-    # Calculate Zeta dt = 1
-    zeta = DB2_DB1 / (2 * A * dt)
-
-    stats = {
-        'D': D,
-        'D_A': D_A,
-        'PHI': PHI,
-        'O_PHI': O_PHI,
-        'fR': fR,
-        'zeta': zeta,
-        'fb': fb,
-        'fw_b': fw_b,
-        'fd_b': fd_b,
-    }
-
-    return stats
-
-
 def get_mobility_yearly(images, mask):
 
     A = len(np.where(mask == 1)[1])
@@ -323,7 +272,6 @@ def get_mobility_yearly(images, mask):
             kb[np.where(kb != 1)] = 0
             Nb = np.sum(kb)
 #            fR = 1 - (Nb / (A * fd_b))
-#            fR = (1 - ((Nb / (A * fd_b)))) * (fd_b**3)
             fR = (Na / w_b) - (Nb / w_b) 
 
             # Calculate D - EQ. (1)
