@@ -1,19 +1,35 @@
+import time
 import copy
+import glob
 import os
 import ee
-import ee.mapclient
+from scipy import stats
 import fiona
 import rasterio
 import rasterio.mask
+from rasterio.merge import merge
 from skimage import measure, draw
 import pandas
 import numpy as np
 import geemap as geemap
 from natsort import natsorted
 
+from landsat_fun import getImageAllMonths
+from landsat_fun import getImageSpecificMonths
+from landsat_fun import getPolygon 
+from channel_mask_fun import getWater
+from channel_mask_fun import getRiver
+from channel_mask_fun import fillHoles
+from download_fun import ee_export_image
+from multiprocessing_fun import multiprocess
+
 
 # ee.Authenticate()
 ee.Initialize()
+
+# Initialize multiprocessing
+MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08',
+    '09', '10', '11', '12', ]
 
 
 def getSurfaceWater(year, polygon):
@@ -63,7 +79,7 @@ def pull_esa(polygon_path, out_root):
                     out_paths[river].append(out_path)
                     continue
 
-                geemap.ee_export_image(
+                ee_export_image(
                     image,
                     filename=out_path,
                     scale=30,
@@ -224,82 +240,180 @@ def filter_images(images, mask, thresh=.2):
     return images_keep
 
 
-def get_mobility_yearly(images, mask):
+def get_pull_months(year, poly, root, name, bot=40, top=80):
+    out_path = os.path.join(
+        root, 
+        '{}_{}_{}.tif'
+    )
+    # Pull monthly images
+    images = getImageAllMonths(year, poly)
 
-    A = len(np.where(mask == 1)[1])
-    year_range = list(images.keys())
-    ranges = [year_range[i:] for i, yr in enumerate(year_range)]
-    river_dfs = {}
-    for yrange in ranges:
-        data = {
-            'year': [],
-            'i': [],
-            'D': [],
-            'D/A': [],
-            'Phi': [],
-            'O_Phi': [],
-            'fR': [],
-            'fw_b': [],
-            'fd_b': [],
-        }
-        length = images[yrange[0]].shape[0]
-        width = images[yrange[0]].shape[1]
-        long = len(yrange)
-        all_images = np.empty((length, width, long))
-        years = []
-        for j, year in enumerate(yrange):
-            years.append(year)
-            im = images[str(year)]
-            where = np.where(~mask)
-            im[where] = 0
-            all_images[:, :, j] = im
+    tasks = []
+    for i, image in enumerate(images):
+        out = out_path.format(
+            name, year, f'{MONTHS[i]}_month'
+        )
+        tasks.append((
+            ee_export_image, 
+            (image, out)
+        ))
 
-        baseline = all_images[:, :, 0]
+    geemap.ee_export_image(image, out, scale=30)
+    multiprocess(tasks)
 
-        w_b = len(np.where(baseline == 1)[0])
-        fb = mask - baseline
-        fw_b = w_b / A
-        fd_b = np.sum(fb) / A
-        Na = A * fd_b
+    bound = image.geometry()
+# Get river masks
+    fps = natsorted(glob.glob(os.path.join(root, '*_month.tif')))
+    rivers = []
+    for fp in fps:
+        ds = rasterio.open(fp)
+        water = getWater(ds).astype(int)
+        river = getRiver(water, ds.transform, bound, grwl)
+        rivers.append(fillHoles(river, 12))
 
-        for j in range(all_images.shape[2]):
-            im = all_images[:, :, j]
+    # Get river_props
+    water_pixels = []
+    for river in rivers:
+        water_pixels.append(len(np.argwhere(river == 1)))
+    water_pixels = np.array(water_pixels)
 
-            kb = (
-                np.sum(all_images[:,:, :j + 1], axis=(2)) 
-                + mask
+    percentiles = np.array([
+        stats.percentileofscore(water_pixels, i) 
+        for i in water_pixels
+    ])
+    ns, = np.where((percentiles > bot) & (percentiles < top))
+    pull_months = [MONTHS[n] for n in ns]
+
+    for fp in fps:
+        os.remove(fp)
+
+    return pull_months
+
+
+def pullYearMask(year, poly, root, name, chunk_i, pull_months):
+
+    # constants
+    grwl = ee.FeatureCollection(
+        "projects/sat-io/open-datasets/GRWL/water_vector_v01_01"
+    )
+
+    # outs
+    out_path = os.path.join(
+        root, 
+        '{}_{}_{}.tif'
+    )
+
+    image = getImageSpecificMonths(year, pull_months, poly)
+
+    if not image.bandNames().getInfo():
+        return None, pull_months
+
+    bound = image.geometry()
+    ee_export_image(
+        image,
+        filename=out_path.format(name, year, f'{chunk_i}'),
+        scale=30,
+        file_per_band=False
+    )
+    ds = rasterio.open(out_path.format(name, year, f'{chunk_i}'))
+    water = getWater(ds).astype(int)
+    river_im = getRiver(water, ds.transform, bound, grwl)
+
+    if not len(river_im):
+        return None, pull_months
+
+    river_im = fillHoles(river_im, 12)
+    os.remove(out_path.format(name, year, f'{chunk_i}'))
+
+    meta = ds.meta
+    meta.update({
+        'count': 1,
+        'dtype': rasterio.uint8
+    })
+
+    with rasterio.open(
+        out_path.format(name, year, f'chunk_{chunk_i}'), 'w', **meta
+    ) as dst:
+        dst.write(river_im.astype(rasterio.uint8), 1)
+
+    return river_im, pull_months
+
+
+def pull_watermasks(polygon_path, root):
+    years = [i for i in range(1985, 2020)]
+    river_polys = getPolygon(polygon_path, root)
+    river_paths = {}
+    for river, polys in river_polys.items():
+        print()
+        print(river)
+        # Make river dir 
+        river_root = root.format(river)
+        os.makedirs(river_root, exist_ok=True)
+
+        # Make image dir 
+        year_root = os.path.join(river_root, 'temps')
+        os.makedirs(year_root, exist_ok=True)
+
+        # Pull yearly images
+        start_time = time.time()
+        out_paths = []
+
+# Add step to pull the "bankfull" months
+        pull_months = get_pull_months(2018, polys[0], year_root, river)
+#        pull_months = None
+        for j, year in enumerate(years):
+            print(j)
+            print(year)
+            time.sleep(60)
+
+            results = [
+                POOL.apply_async(pullYearMask, args=(
+                    year,
+                    poly,
+                    year_root,
+                    river,
+                    i,
+                    pull_months
+                ))
+                for i, poly in enumerate(polys)
+            ]
+#
+#            for i, poly in enumerate(polys):
+#                river_mask, pull_months = pullYearMask(
+#                    year, poly, year_root, river, i, pull_months
+#                )
+
+            fps = glob.glob(os.path.join(year_root, '*chunk*.tif'))
+            if not fps:
+                continue
+
+            mosaics = []
+            for fp in fps:
+                ds = rasterio.open(fp)
+                mosaics.append(ds)
+            meta = ds.meta.copy()
+            mosaic, out_trans = merge(mosaics)
+
+            # Update the metadata
+            meta.update({
+                "height": mosaic.shape[1],
+                "width": mosaic.shape[2],
+                "transform": out_trans,
+            })
+
+            out_path = os.path.join(
+                year_root, 
+                '{}_{}_{}.tif'
             )
-            kb[np.where(kb != 1)] = 0
-            Nb = np.sum(kb)
-#            fR = 1 - (Nb / (A * fd_b))
-            fR = (Na / w_b) - (Nb / w_b) 
+            out_fp = out_path.format(river, year, 'full')
+            out_paths.append(out_fp)
 
-            # Calculate D - EQ. (1)
-            D = np.sum(np.abs(np.subtract(baseline, im)))
+            with rasterio.open(out_fp, "w", **meta) as dest:
+                dest.write(mosaic)
 
-            # Calculate D / A
-            D_A = D / A
+            for fp in fps:
+                os.remove(fp)
 
-            # Calculate Phi
-            w_t = len(np.where(im == 1)[0])
-            fw_t = w_t / A
-            fd_t = (A - w_t) / A
+        river_paths[river] = out_paths
 
-            PHI = (fw_b * fd_t) + (fd_b * fw_t)
-
-            # Calculate O_Phi
-            O_PHI = 1 - (D / (A * PHI))
-
-            data['i'].append(j)
-            data['D'].append(D)
-            data['D/A'].append(D_A)
-            data['Phi'].append(PHI)
-            data['O_Phi'].append(O_PHI)
-            data['fR'].append(fR)
-            data['fw_b'].append(fw_b)
-            data['fd_b'].append(fd_b)
-        data['year'] = years
-        river_dfs[yrange[0]] = pandas.DataFrame(data=data)
-
-
-    return river_dfs
+    return river_paths

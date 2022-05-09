@@ -12,5 +12,12 @@ root = '/Users/greenberg/Documents/PHD/Projects/Mobility/WaterMaskTesting/monthl
 gif = true
 name = 'yellow'
 
+# Submit method -> Make the method call
+# Each method call will have:
+# 1. getPolygon(s)
+# 2. getImages
+# 3. getMobility
+# 4. makeGif
+
 
 polys = getPolygon(polygon_path, root, name)
