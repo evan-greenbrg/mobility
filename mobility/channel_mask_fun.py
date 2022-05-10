@@ -145,8 +145,10 @@ def getWater(ds):
 def getRiver(water, transform, bound, grwl):
 
     # Rasterize centerline
-    cl = grwl.filterBounds(bound)
+#    cl = grwl.filterBounds(bound).geometry().getInfo()
+#    multi = ops.linemerge(MultiLineString(cl['coordinates']))
 
+    cl = grwl.filterBounds(bound)
     lines = []
     for feature in cl.getInfo()['features']:
         lines.append(LineString(feature['geometry']['coordinates']))

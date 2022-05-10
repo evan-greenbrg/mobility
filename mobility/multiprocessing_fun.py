@@ -1,7 +1,12 @@
 import time
 import random
+from multiprocessing import Process
+from multiprocessing import Queue
+from multiprocessing import current_process
+from multiprocessing import freeze_support
+from multiprocessing import cpu_count
 
-from multiprocessing import Process, Queue, current_process, freeze_support, cpu_count
+import ee
 
 #
 # Function run by worker processes

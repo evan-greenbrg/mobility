@@ -45,99 +45,145 @@ def getSurfaceWater(year, polygon):
     )
 
 
-def pull_esa(polygon_path, out_root):
-    years = [i for i in range(1985, 2020)]
-
+def get_bound(polygon_path, river):
     polygon_name = polygon_path.split('/')[-1].split('.')[0]
-
-    out_paths = {}
     with fiona.open(polygon_path, layer=polygon_name) as layer:
-        for feature in layer:
-            geom = feature['geometry']
-            river = feature['properties']['River']
-            out_paths[river] = []
-            for year in years:
-                print(year)
-                poly = ee.Geometry.Polygon(geom['coordinates'])
-
-                river_root = out_root.format(river)
-                os.makedirs(river_root, exist_ok=True)
-
-                year_root = os.path.join(river_root, 'temps')
-                os.makedirs(year_root, exist_ok=True)
-
-                image = getSurfaceWater(year, poly)
-                out_path = os.path.join(
-                    year_root,
-                    f'{river}_{year}.tif'
-                )
-                downloaded = os.path.exists(out_path)
-                if downloaded:
-                    print()
-                    print('Already Exists')
-                    print()
-                    out_paths[river].append(out_path)
-                    continue
-
-                ee_export_image(
-                    image,
-                    filename=out_path,
-                    scale=30,
-                    file_per_band=False
-                )
-                downloaded = os.path.exists(out_path)
-
-                if downloaded:
-                    out_paths[river].append(out_path)
-                else:
-                    print()
-                    print(river)
-                    print('Not Downloaded')
-                    print()
-
-    for key, item in out_paths.items():
-        out_paths[key] = natsorted(item)
-
-    return out_paths
-
-
-def clean_esa(poly, river, fps):
-    polygon_name = poly.split('/')[-1].split('.')[0]
-    with fiona.open(poly, layer=polygon_name) as layer:
         for feature in layer:
             geom_river = feature['properties']['River']
 
             if geom_river != river:
                 continue
 
-            geom = feature['geometry']
-            images = {}
-            metas = {}
+            return ee.geometry.Geometry(feature['geometry'])
+
+
+def pull_esa(polygon_path, out_root):
+
+    years = [i for i in range(1985, 2020)]
+    river_polys = getPolygon(polygon_path, out_root)
+    river_paths = {}
+
+    for river, polys in river_polys.items():
+
+        print()
+        print(river)
+        river_root = out_root.format(river)
+        os.makedirs(river_root, exist_ok=True)
+
+        # Make image dir 
+        year_root = os.path.join(river_root, 'temps')
+        os.makedirs(year_root, exist_ok=True)
+
+        out_paths = []
+
+        # Get months that are average-bankfull flow
+        pull_months = get_pull_months(2018, polys[0], year_root, river)
+
+        for j, year in enumerate(years):
+            print(year)
+            time.sleep(5)
+
+            tasks = []
+            for i, poly in enumerate(polys):
+                tasks.append((
+                    pullYearESA,
+                    (year, poly, year_root, river, i, pull_months)
+                ))
+
+            multiprocess(tasks)
+
+            fps = glob.glob(os.path.join(year_root, '*mask*.tif'))
+            if not fps:
+                continue
+
+            mosaics = []
             for fp in fps:
-                year = fp.split('_')[-1].split('.')[0]
                 ds = rasterio.open(fp)
-                raw_image = ds.read(1)
+                mosaics.append(ds)
+            meta = ds.meta.copy()
+            print(meta)
+            mosaic, out_trans = merge(mosaics)
+            
+            mosaic[mosaic < 2] = 0
+            mosaic[mosaic > 1] = 1
 
-                image, tf = rasterio.mask.mask(
-                    ds, [geom],
-                    crop=False, filled=False
-                )
+            for fp in fps:
+                os.remove(fp)
 
-                # Threshold
-                water = image.data[0, :, :] > 1
+            if not np.sum(mosaic):
+                continue
 
-                dsmeta = ds.meta
-                dsmeta.update(
-                    width=water.shape[1],
-                    height=water.shape[0],
-                    count=1,
-                    dtype=rasterio.int8
-                )
+            # Update the metadata
+            meta.update({
+                "height": mosaic.shape[1],
+                "width": mosaic.shape[2],
+                "transform": out_trans,
+                "dtype": rasterio.uint8
+            })
 
-                images[year] = water
-                metas[year] = dsmeta
+            out_path = os.path.join(
+                year_root, 
+                '{}_{}_{}.tif'
+            )
+            out_fp = out_path.format(river, year, 'full')
+            out_paths.append(out_fp)
 
-    return images, metas
+            with rasterio.open(out_fp, "w", **meta) as dest:
+                dest.write(mosaic.astype(rasterio.uint8))
+
+        river_paths[river] = out_paths
+
+    return river_paths
+
+
+def clean_esa(poly, river, fps):
+    grwl = ee.FeatureCollection(
+        "projects/sat-io/open-datasets/GRWL/water_vector_v01_01"
+    )
+
+    polygon_name = poly.split('/')[-1].split('.')[0]
+    with fiona.open(poly, layer=polygon_name) as layer:
+        for feature in layer:
+            geom_river = feature['properties']['River']
+            bound = ee.geometry.Geometry(feature['geometry'])
+
+            if geom_river != river:
+                continue
+            geom = feature['geometry']
+
+    images = {}
+    metas = {}
+    for fp in fps:
+        year = fp.split('_')[-1].split('.')[0]
+        ds = rasterio.open(fp)
+        raw_image = ds.read(1)
+
+        image, tf = rasterio.mask.mask(
+            ds, [geom],
+            crop=False, filled=False
+        )
+
+        # Threshold
+        water = image.data[0, :, :] > 0
+        print(water.shape)
+
+        meta = ds.meta
+        meta.update(
+            width=water.shape[1],
+            height=water.shape[0],
+            count=1,
+            dtype=rasterio.int8
+        )
+
+        with rasterio.open(fp, "w", **meta) as dest:
+            dest.write(water.astype(rasterio.uint8), 1)
+
+    return 1 
+
+#                images[year] = water 
+#                metas[year] = water 
+#
+#    return images, metas
 
 
 def create_mask(images):
@@ -241,6 +287,10 @@ def filter_images(images, mask, thresh=.2):
 
 
 def get_pull_months(year, poly, root, name, bot=40, top=80):
+    
+    grwl = ee.FeatureCollection(
+        "projects/sat-io/open-datasets/GRWL/water_vector_v01_01"
+    )
     out_path = os.path.join(
         root, 
         '{}_{}_{}.tif'
@@ -258,7 +308,6 @@ def get_pull_months(year, poly, root, name, bot=40, top=80):
             (image, out)
         ))
 
-    geemap.ee_export_image(image, out, scale=30)
     multiprocess(tasks)
 
     bound = image.geometry()
@@ -290,6 +339,28 @@ def get_pull_months(year, poly, root, name, bot=40, top=80):
     return pull_months
 
 
+def pullYearESA(year, poly, root, name, chunk_i, pull_months):
+    # outs
+    out_path = os.path.join(
+        root, 
+        '{}_{}_{}.tif'
+    )
+
+    image = getSurfaceWater(year, poly)
+
+    if not image.bandNames().getInfo():
+        return None
+
+    ee_export_image(
+        image,
+        filename=out_path.format(name, year, f'mask_{chunk_i}'),
+        scale=30,
+        file_per_band=False
+    )
+
+    return 1
+
+
 def pullYearMask(year, poly, root, name, chunk_i, pull_months):
 
     # constants
@@ -306,24 +377,25 @@ def pullYearMask(year, poly, root, name, chunk_i, pull_months):
     image = getImageSpecificMonths(year, pull_months, poly)
 
     if not image.bandNames().getInfo():
-        return None, pull_months
+        return None
 
     bound = image.geometry()
     ee_export_image(
         image,
-        filename=out_path.format(name, year, f'{chunk_i}'),
+        filename=out_path.format(name, year, f'image_{chunk_i}'),
         scale=30,
         file_per_band=False
     )
-    ds = rasterio.open(out_path.format(name, year, f'{chunk_i}'))
+    ds = rasterio.open(out_path.format(name, year, f'image_{chunk_i}'))
     water = getWater(ds).astype(int)
     river_im = getRiver(water, ds.transform, bound, grwl)
 
     if not len(river_im):
-        return None, pull_months
+        os.remove(out_path.format(name, year, f'image_{chunk_i}'))
+        return None
 
     river_im = fillHoles(river_im, 12)
-    os.remove(out_path.format(name, year, f'{chunk_i}'))
+    os.remove(out_path.format(name, year, f'image_{chunk_i}'))
 
     meta = ds.meta
     meta.update({
@@ -332,11 +404,13 @@ def pullYearMask(year, poly, root, name, chunk_i, pull_months):
     })
 
     with rasterio.open(
-        out_path.format(name, year, f'chunk_{chunk_i}'), 'w', **meta
+        out_path.format(name, year, f'mask_{chunk_i}'), 'w', **meta
     ) as dst:
         dst.write(river_im.astype(rasterio.uint8), 1)
 
-    return river_im, pull_months
+    fps = glob.glob
+
+    return river_im
 
 
 def pull_watermasks(polygon_path, root):
@@ -358,32 +432,22 @@ def pull_watermasks(polygon_path, root):
         start_time = time.time()
         out_paths = []
 
-# Add step to pull the "bankfull" months
         pull_months = get_pull_months(2018, polys[0], year_root, river)
 #        pull_months = None
         for j, year in enumerate(years):
             print(j)
             print(year)
-            time.sleep(60)
-
-            results = [
-                POOL.apply_async(pullYearMask, args=(
-                    year,
-                    poly,
-                    year_root,
-                    river,
-                    i,
-                    pull_months
+            time.sleep(15)
+            tasks = []
+            for i, poly in enumerate(polys):
+                tasks.append((
+                    pullYearMask,
+                    (year, poly, year_root, river, i, pull_months)
                 ))
-                for i, poly in enumerate(polys)
-            ]
-#
-#            for i, poly in enumerate(polys):
-#                river_mask, pull_months = pullYearMask(
-#                    year, poly, year_root, river, i, pull_months
-#                )
 
-            fps = glob.glob(os.path.join(year_root, '*chunk*.tif'))
+            multiprocess(tasks)
+
+            fps = glob.glob(os.path.join(year_root, '*mask*.tif'))
             if not fps:
                 continue
 
