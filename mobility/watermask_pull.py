@@ -27,6 +27,6 @@ if __name__ == '__main__':
     if platform.system() == "Darwin":
             set_start_method('spawn')
 
-    polygon_path = '/Users/greenberg/Documents/PHD/Projects/Mobility/WaterMaskTesting/YellowTooBig.gpkg'
-    root = '/Users/greenberg/Documents/PHD/Projects/Mobility/WaterMaskTesting/monthly'
+    polygon_path = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/Trinity.gpkg'
+    root = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS'
     paths = pull_watermasks(polygon_path, root)

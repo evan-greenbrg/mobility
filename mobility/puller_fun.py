@@ -304,7 +304,7 @@ def get_pull_months(year, poly, root, name, bot=40, top=80):
             name, year, f'{MONTHS[i]}_month'
         )
         tasks.append((
-            ee_export_image, 
+            geemap.ee_export_image, 
             (image, out)
         ))
 
@@ -318,7 +318,7 @@ def get_pull_months(year, poly, root, name, bot=40, top=80):
         ds = rasterio.open(fp)
         water = getWater(ds).astype(int)
         river = getRiver(water, ds.transform, bound, grwl)
-        rivers.append(fillHoles(river, 12))
+        rivers.append(river)
 
     # Get river_props
     water_pixels = []
@@ -394,7 +394,6 @@ def pullYearMask(year, poly, root, name, chunk_i, pull_months):
         os.remove(out_path.format(name, year, f'image_{chunk_i}'))
         return None
 
-    river_im = fillHoles(river_im, 12)
     os.remove(out_path.format(name, year, f'image_{chunk_i}'))
 
     meta = ds.meta

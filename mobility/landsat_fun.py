@@ -228,7 +228,8 @@ def getPolygon(polygon_path, root, year=2018):
             try:
                 url = image.getDownloadURL(params)
                 outcomes.append(True)
-                return [poly]
+                river_polys[river] = [poly]
+                continue
 
             except:
                 outcomes.append(False)
