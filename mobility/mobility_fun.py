@@ -1,5 +1,60 @@
+import os
 import numpy as np
 import pandas
+
+from puller_fun import filter_images
+from puller_fun import clean_esa
+from puller_fun import create_mask_shape
+
+
+def get_mobility_rivers(poly, paths, out):
+    rivers = []
+    for river, path_list in paths.items():
+        # mask stuff
+        mask = create_mask_shape(
+            poly,
+            river,
+            path_list
+        )
+
+        images, metas = clean_esa(
+            poly, 
+            river, 
+            path_list
+        )
+
+#        clean_images = filter_images(
+#            images,
+#            mask,
+#            thresh=.00001
+#        )
+
+        river_dfs = get_mobility_yearly(
+            images,
+            mask,
+        )
+
+        full_df = pandas.DataFrame()
+        for year, df in river_dfs.items():
+            rnge = f"{year}_{df.iloc[-1]['year']}"
+            df['dt'] = pandas.to_datetime(
+                df['year'],
+                format='%Y'
+            )
+            df['range'] = rnge
+
+            full_df = full_df.append(df)
+
+        out_path = os.path.join(
+            out,
+            river,
+            f'{river}_yearly_mobility.csv'
+        )
+        full_df.to_csv(out_path)
+        rivers.append(river)
+
+    return rivers
+
 
 
 def get_mobility_yearly(images, mask):
@@ -27,9 +82,9 @@ def get_mobility_yearly(images, mask):
         years = []
         for j, year in enumerate(yrange):
             years.append(year)
-            im = images[str(year)]
-            where = np.where(~mask)
-            im[where] = 0
+            im = images[str(year)].astype(int)
+            im[mask.mask] = 0
+#            im[where] = 0
             all_images[:, :, j] = im
 
         baseline = all_images[:, :, 0]
@@ -76,6 +131,7 @@ def get_mobility_yearly(images, mask):
             data['fR'].append(fR)
             data['fw_b'].append(fw_b)
             data['fd_b'].append(fd_b)
+
         data['year'] = years
         river_dfs[yrange[0]] = pandas.DataFrame(data=data)
 

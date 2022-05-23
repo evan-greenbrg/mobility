@@ -154,7 +154,8 @@ def clean_esa(poly, river, fps):
     images = {}
     metas = {}
     for fp in fps:
-        year = fp.split('_')[-1].split('.')[0]
+        year = fp.split('_')[-2].split('.')[0]
+        print(year)
         ds = rasterio.open(fp)
         raw_image = ds.read(1)
 
@@ -165,7 +166,6 @@ def clean_esa(poly, river, fps):
 
         # Threshold
         water = image.data[0, :, :] > 0
-        print(water.shape)
 
         meta = ds.meta
         meta.update(
@@ -175,15 +175,13 @@ def clean_esa(poly, river, fps):
             dtype=rasterio.int8
         )
 
-        with rasterio.open(fp, "w", **meta) as dest:
-            dest.write(water.astype(rasterio.uint8), 1)
+        images[year] = water 
+        metas[year] = meta
 
-    return 1 
+#        with rasterio.open(fp, "w", **meta) as dest:
+#            dest.write(water.astype(rasterio.uint8), 1)
 
-#                images[year] = water 
-#                metas[year] = water 
-#
-#    return images, metas
+    return images, metas
 
 
 def create_mask(images):
@@ -220,6 +218,7 @@ def create_mask_shape(polygon_path, river, fps):
                 ds, [geom],
                 crop=False, filled=False
             )
+            out_image = out_image.astype('int64')
             out_image += 11
             out_image[np.where(out_image < 10)] = 0
             out_image[np.where(out_image > 10)] = 1
@@ -371,6 +370,7 @@ def pullYearMask(year, poly, root, name, chunk_i, pull_months):
     # outs
     out_path = os.path.join(
         root, 
+        str(year),
         '{}_{}_{}.tif'
     )
 
@@ -407,8 +407,6 @@ def pullYearMask(year, poly, root, name, chunk_i, pull_months):
     ) as dst:
         dst.write(river_im.astype(rasterio.uint8), 1)
 
-    fps = glob.glob
-
     return river_im
 
 
@@ -420,11 +418,7 @@ def pull_watermasks(polygon_path, root):
         print()
         print(river)
         # Make river dir 
-        river_root = root.format(river)
-        os.makedirs(river_root, exist_ok=True)
-
-        # Make image dir 
-        year_root = os.path.join(river_root, 'temps')
+        year_root = os.path.join(root, river)
         os.makedirs(year_root, exist_ok=True)
 
         # Pull yearly images
@@ -433,20 +427,27 @@ def pull_watermasks(polygon_path, root):
 
         pull_months = get_pull_months(2018, polys[0], year_root, river)
 #        pull_months = None
+        tasks = []
         for j, year in enumerate(years):
-            print(j)
-            print(year)
-            time.sleep(15)
-            tasks = []
+            os.makedirs(
+                os.path.join(
+                    year_root, str(year),
+                ), exist_ok=True
+            )
+#            print(j)
+#            print(year)
+#            time.sleep(15)
             for i, poly in enumerate(polys):
                 tasks.append((
                     pullYearMask,
                     (year, poly, year_root, river, i, pull_months)
                 ))
+        multiprocess(tasks)
 
-            multiprocess(tasks)
-
-            fps = glob.glob(os.path.join(year_root, '*mask*.tif'))
+        for j, year in enumerate(years):
+            fps = glob.glob(os.path.join(
+                year_root, str(year), '*mask*.tif'
+            ))
             if not fps:
                 continue
 

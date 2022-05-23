@@ -12,7 +12,7 @@ from puller_fun import clean_esa
 from puller_fun import create_mask_shape
 from puller_fun import clean_channel_belt 
 from puller_fun import filter_images
-from puller_fun import get_mobility_yearly
+from mobility_fun import get_mobility_yearly
 from gif_fun import make_gif
 
 
@@ -110,3 +110,19 @@ if __name__ == '__main__':
     )
     if (args.gif == 'true'):
         make_gifs(rivers, args.root, args.out)
+
+
+
+river = 'Trinity'
+poly = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/Trinity.gpkg'
+root = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/TrinityUse'
+gif = 'true'
+out = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/TrinityUse'
+rivers = get_images(
+    river,
+    poly,
+    root, 
+    gif,
+    out
+)
+make_gifs(rivers, root, out)

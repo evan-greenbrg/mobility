@@ -1,3 +1,4 @@
+import os
 import io
 import glob
 import rasterio
@@ -36,7 +37,8 @@ def make_gif(fp, fp_in, fp_out, stat_out):
 
     years = {}
     for im in imgs:
-        year = im.split('_')[-1].split('.')[0]
+        year = im.split('_')[-2].split('.')[0]
+        print(year)
         if years.get(year):
             years[year].append(im)
         else:
@@ -46,6 +48,7 @@ def make_gif(fp, fp_in, fp_out, stat_out):
     years_filt = {}
     for key in year_keys:
         years_filt[key] = years[str(key)]
+
     years = years_filt
     year_keys = list(years.keys())
     imgs = []
@@ -53,19 +56,12 @@ def make_gif(fp, fp_in, fp_out, stat_out):
     combos = []
     for year, file in years.items():
         ds = rasterio.open(file).read(1)
-        ds[ds > 1] = 999
-        ds[ds < 900] = 0
-        ds[ds == 999] = 1
 
         image = ds
         if year == year_keys[0]:
             agr = ds
         else:
             agr += ds
-
-        agr[agr > 0] = 999
-        agr[agr < 900] = 0
-        agr[agr == 999] = 1
 
         ag_save = np.copy(agr)
 
@@ -215,22 +211,7 @@ def make_gif(fp, fp_in, fp_out, stat_out):
                 color='red'
             )
         ax2.set_ylabel('Remaining Rework Fraction')
-        ax2.text(
-            0.5,
-            0.85,
-            f'2-Param R: {round(r_2, 2)}',
-            horizontalalignment='left',
-            verticalalignment='center',
-            transform=ax2.transAxes
-        )
-        ax2.text(
-            0.5,
-            0.8,
-            f'2-Param R2: {round(f_r2_2, 2)}',
-            horizontalalignment='left',
-            verticalalignment='center',
-            transform=ax2.transAxes
-        )
+        ax2.set_ylim([0, 2])
         ax2.legend(
             loc='upper left',
             frameon=True
@@ -267,22 +248,7 @@ def make_gif(fp, fp_in, fp_out, stat_out):
         )
         ax3.scatter(data['x'], data['O_Phi'], s=200, zorder=3, color='red')
         ax3.set_ylabel('Normalized Channel Overlap')
-        ax3.text(
-            0.5,
-            0.95,
-            f'3-Param M: {round(m_3, 2)}',
-            horizontalalignment='left',
-            verticalalignment='center',
-            transform=ax3.transAxes
-        )
-        ax3.text(
-            0.5,
-            0.9,
-            f'3-Param R2: {round(o_r2_3, 2)}',
-            horizontalalignment='left',
-            verticalalignment='center',
-            transform=ax3.transAxes
-        )
+        ax3.set_ylim([0, 1])
 
         plt.savefig(img_buf, format='png')
         images.append(Image.open(img_buf))
@@ -297,3 +263,8 @@ def make_gif(fp, fp_in, fp_out, stat_out):
         duration=400,
         loop=30
     )
+
+    root = '/'.join(fp.split('/')[:-1])
+    dirs = glob.glob(os.path.join(root, '*/'))
+    for dire in dirs:
+        os.rmdir(dire)
