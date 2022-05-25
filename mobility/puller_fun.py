@@ -18,7 +18,9 @@ from landsat_fun import getImageAllMonths
 from landsat_fun import getImageSpecificMonths
 from landsat_fun import getPolygon 
 from channel_mask_fun import getWater
-from channel_mask_fun import getRiver
+from channel_mask_fun import getRiverGRWL
+from channel_mask_fun import getRiverMERIT
+from channel_mask_fun import getMERITfeatures 
 from channel_mask_fun import fillHoles
 from download_fun import ee_export_image
 from multiprocessing_fun import multiprocess
@@ -57,7 +59,7 @@ def get_bound(polygon_path, river):
             return ee.geometry.Geometry(feature['geometry'])
 
 
-def pull_esa(polygon_path, out_root):
+def pull_esa(polygon_path, out_root, export_images=False):
 
     years = [i for i in range(1985, 2020)]
     river_polys = getPolygon(polygon_path, out_root)
@@ -87,7 +89,10 @@ def pull_esa(polygon_path, out_root):
             for i, poly in enumerate(polys):
                 tasks.append((
                     pullYearESA,
-                    (year, poly, year_root, river, i, pull_months)
+                    (
+                        year, poly, year_root, 
+                        river, i, pull_months
+                    )
                 ))
 
             multiprocess(tasks)
@@ -101,7 +106,6 @@ def pull_esa(polygon_path, out_root):
                 ds = rasterio.open(fp)
                 mosaics.append(ds)
             meta = ds.meta.copy()
-            print(meta)
             mosaic, out_trans = merge(mosaics)
             
             mosaic[mosaic < 2] = 0
@@ -154,7 +158,8 @@ def clean_esa(poly, river, fps):
     images = {}
     metas = {}
     for fp in fps:
-        year = fp.split('_')[-2].split('.')[0]
+#        year = fp.split('_')[-3].split('.')[0]
+        year = fp.split('_')[-3]
         print(year)
         ds = rasterio.open(fp)
         raw_image = ds.read(1)
@@ -285,11 +290,10 @@ def filter_images(images, mask, thresh=.2):
     return images_keep
 
 
-def get_pull_months(year, poly, root, name, bot=40, top=80):
+def get_pull_months(year, poly, root, name, 
+                    bot=40, top=80, 
+                    method='grwl', network=None):
     
-    grwl = ee.FeatureCollection(
-        "projects/sat-io/open-datasets/GRWL/water_vector_v01_01"
-    )
     out_path = os.path.join(
         root, 
         '{}_{}_{}.tif'
@@ -303,9 +307,10 @@ def get_pull_months(year, poly, root, name, bot=40, top=80):
             name, year, f'{MONTHS[i]}_month'
         )
         tasks.append((
-            geemap.ee_export_image, 
+            ee_export_image, 
             (image, out)
         ))
+#        ee_export_image(image, out, scale=30, file_per_band=False)
 
     multiprocess(tasks)
 
@@ -316,7 +321,14 @@ def get_pull_months(year, poly, root, name, bot=40, top=80):
     for fp in fps:
         ds = rasterio.open(fp)
         water = getWater(ds).astype(int)
-        river = getRiver(water, ds.transform, bound, grwl)
+        if method == 'grwl':
+            grwl = ee.FeatureCollection(
+                "projects/sat-io/open-datasets/GRWL/water_vector_v01_01"
+            )
+            river = getRiverGRWL(water, ds.transform, bound, grwl)
+        elif method == 'merit':
+            river = getRiverMERIT(water, ds.transform, network)
+
         rivers.append(river)
 
     # Get river_props
@@ -360,7 +372,8 @@ def pullYearESA(year, poly, root, name, chunk_i, pull_months):
     return 1
 
 
-def pullYearMask(year, poly, root, name, chunk_i, pull_months):
+def pullYearMask(year, poly, root, name, chunk_i, pull_months,
+                 export_images=False, method='grwl', network=None):
 
     # constants
     grwl = ee.FeatureCollection(
@@ -388,13 +401,26 @@ def pullYearMask(year, poly, root, name, chunk_i, pull_months):
     )
     ds = rasterio.open(out_path.format(name, year, f'image_{chunk_i}'))
     water = getWater(ds).astype(int)
-    river_im = getRiver(water, ds.transform, bound, grwl)
+    if method == 'grwl':
+        river_im = getRiverGRWL(
+            water, ds.transform, bound, grwl
+        )
+    elif method == 'merit':
+        ### NEEED TO BRING METHOD TO SAMPLE MERIT VECTOR OUT OF LOOP
+        river_im = getRiverMERIT(
+            water, ds.transform, network 
+        )
+
+#    river_im = getRiver(water, ds.transform, bound, grwl)
+#    river_im = getLargest(water)
 
     if not len(river_im):
-        os.remove(out_path.format(name, year, f'image_{chunk_i}'))
+        if not export_images:
+            os.remove(out_path.format(name, year, f'image_{chunk_i}'))
         return None
 
-    os.remove(out_path.format(name, year, f'image_{chunk_i}'))
+    if not export_images:
+        os.remove(out_path.format(name, year, f'image_{chunk_i}'))
 
     meta = ds.meta
     meta.update({
@@ -410,23 +436,31 @@ def pullYearMask(year, poly, root, name, chunk_i, pull_months):
     return river_im
 
 
-def pull_watermasks(polygon_path, root):
+def pull_watermasks(polygon_path, root, export_images, 
+                    method='grwl', merit_path=None):
     years = [i for i in range(1985, 2020)]
     river_polys = getPolygon(polygon_path, root)
     river_paths = {}
     for river, polys in river_polys.items():
         print()
         print(river)
+        # Get merit features
+        networks = None
+        if merit_path:
+            print('finding networks')
+            networks = getMERITfeatures(polys, merit_path)
+
         # Make river dir 
         year_root = os.path.join(root, river)
         os.makedirs(year_root, exist_ok=True)
 
         # Pull yearly images
-        start_time = time.time()
-        out_paths = []
-
-        pull_months = get_pull_months(2018, polys[0], year_root, river)
-#        pull_months = None
+        pull_months = get_pull_months(
+            2018, polys[0], year_root, river, 
+            40, 80,
+            method, networks[0] 
+        )
+        print(pull_months)
         tasks = []
         for j, year in enumerate(years):
             os.makedirs(
@@ -434,50 +468,74 @@ def pull_watermasks(polygon_path, root):
                     year_root, str(year),
                 ), exist_ok=True
             )
-#            print(j)
-#            print(year)
-#            time.sleep(15)
             for i, poly in enumerate(polys):
                 tasks.append((
                     pullYearMask,
-                    (year, poly, year_root, river, i, pull_months)
+                    (
+                        year, poly, year_root, 
+                        river, i, pull_months, export_images,
+                        method, networks[i]
+                    )
                 ))
         multiprocess(tasks)
 
+        out_paths = []
         for j, year in enumerate(years):
-            fps = glob.glob(os.path.join(
-                year_root, str(year), '*mask*.tif'
-            ))
-            if not fps:
+            # Images
+            if export_images:
+                pattern = 'image'
+                out_fp = mosaic_images(
+                    year_root, year, river, pattern
+                )
+
+            # mask
+            pattern = 'mask'
+            out_fp = mosaic_images(
+                year_root, year, river, pattern
+            )
+            if not out_fp:
                 continue
 
-            mosaics = []
-            for fp in fps:
-                ds = rasterio.open(fp)
-                mosaics.append(ds)
-            meta = ds.meta.copy()
-            mosaic, out_trans = merge(mosaics)
-
-            # Update the metadata
-            meta.update({
-                "height": mosaic.shape[1],
-                "width": mosaic.shape[2],
-                "transform": out_trans,
-            })
-
-            out_path = os.path.join(
-                year_root, 
-                '{}_{}_{}.tif'
-            )
-            out_fp = out_path.format(river, year, 'full')
             out_paths.append(out_fp)
-
-            with rasterio.open(out_fp, "w", **meta) as dest:
-                dest.write(mosaic)
-
-            for fp in fps:
-                os.remove(fp)
 
         river_paths[river] = out_paths
 
     return river_paths
+
+
+def mosaic_images(year_root, year, river, pattern):
+    pattern_format = '*{}*.tif'.format(pattern)
+    # Mosaic Masks
+    fps = glob.glob(os.path.join(
+        year_root, str(year), pattern_format
+    ))
+    if not fps:
+        return None 
+
+    mosaics = []
+    for fp in fps:
+        ds = rasterio.open(fp)
+        mosaics.append(ds)
+    meta = ds.meta.copy()
+    mosaic, out_trans = merge(mosaics)
+
+    # Update the metadata
+    meta.update({
+        "height": mosaic.shape[1],
+        "width": mosaic.shape[2],
+        "transform": out_trans,
+    })
+
+    out_path = os.path.join(
+        year_root, 
+        '{}_{}_{}.tif'
+    )
+    out_fp = out_path.format(river, year, f'full_{pattern}')
+
+    with rasterio.open(out_fp, "w", **meta) as dest:
+        dest.write(mosaic)
+
+    for fp in fps:
+        os.remove(fp)
+
+    return out_fp

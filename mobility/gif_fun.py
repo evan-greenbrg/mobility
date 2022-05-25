@@ -37,12 +37,9 @@ def make_gif(fp, fp_in, fp_out, stat_out):
 
     years = {}
     for im in imgs:
-        year = im.split('_')[-2].split('.')[0]
+        year = im.split('_')[-3].split('.')[0]
         print(year)
-        if years.get(year):
-            years[year].append(im)
-        else:
-            years[year] = im
+        years[str(year)] = im
 
     year_keys = list(full_df['year'].unique())
     years_filt = {}
