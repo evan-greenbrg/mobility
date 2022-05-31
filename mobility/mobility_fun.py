@@ -2,7 +2,6 @@ import os
 import numpy as np
 import pandas
 
-from puller_fun import filter_images
 from puller_fun import clean_esa
 from puller_fun import create_mask_shape
 
@@ -22,12 +21,6 @@ def get_mobility_rivers(poly, paths, out):
             river, 
             path_list
         )
-
-#        clean_images = filter_images(
-#            images,
-#            mask,
-#            thresh=.00001
-#        )
 
         river_dfs = get_mobility_yearly(
             images,

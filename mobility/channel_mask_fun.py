@@ -46,7 +46,40 @@ def Awesh(ds):
         + (-.25 * ds.read(7))
     )
 
-def getWater(ds):
+
+def Evi(ds):
+    # calculate the enhanced vegetation index
+    nir = ds.read(6)
+    red = ds.read(3)
+    blue = ds.read(1)
+
+    return (
+        2.5 
+        * (nir - red) 
+        / (1 + nir + (6 * red) - (7.5 * blue))
+    )
+
+
+def getWaterZou(ds):
+    arr = np.empty((ds.shape[0], ds.shape[1], 3))
+    mndwi = Mndwi(ds) # mndwi
+    ndvi = Ndvi(ds) # ndvi 
+    evi = Evi(ds) # evi 
+
+    water = np.zeros(ds.shape)
+    where = np.where(
+        (
+            (mndwi > ndvi)
+            | (mndwi > evi)
+        )
+        & (evi < 0.1)
+    )
+    water[where] = 1
+
+    return water
+
+
+def getWaterJones(ds):
     arr = np.empty((ds.shape[0], ds.shape[1], 9))
     arr[:, :, 0] = Mndwi(ds) # mndwi
     arr[:, :, 1] = Mbsrv(ds) # mbsrv
@@ -144,11 +177,11 @@ def getWater(ds):
     )
 
 
-def getRiverGRWL(water, transform, bound, grwl):
+def getRiverGRWL(water, transform, bound):
 
-    # Rasterize centerline
-#    cl = grwl.filterBounds(bound).geometry().getInfo()
-#    multi = ops.linemerge(MultiLineString(cl['coordinates']))
+    grwl = ee.FeatureCollection(
+        "projects/sat-io/open-datasets/GRWL/water_vector_v01_01"
+    )
 
     cl = grwl.filterBounds(bound)
     lines = []
@@ -298,31 +331,17 @@ def getRiverMERIT(water, transform, network):
     return (cost_array == 0).astype(int)
 
 
-def getLargest(water):
+def getRiverLARGEST(water):
     labels = measure.label(water)
+    
+    if not labels.max():
+        return water
+
      # assume at least 1 CC
-    assert( labels.max() != 0 )
+    assert(labels.max() != 0)
 
     # Find largest connected component
     bins = np.bincount(labels.flat)[1:] 
     cc = labels == np.argmax(np.bincount(labels.flat)[1:]) + 1
 
-    return cc
-
-
-def fillHoles(channel, fill_size):
-    # Remove islands
-    fill = 1 - np.copy(channel)
-    labels, num = label(fill, return_num=True)
-
-    props = np.empty((num, 2)).astype(int)
-    for n in range(num):
-        count = len(np.argwhere(labels == n))
-        props[n, 0] = n
-        props[n, 1] = count
-    fill_labels = np.argwhere(props[:, 1] < fill_size)
-
-    for fill_label in fill_labels:
-        channel[labels == fill_label] = 1
-
-    return channel
+    return cc.astype(int)

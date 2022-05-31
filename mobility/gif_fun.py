@@ -262,6 +262,8 @@ def make_gif(fp, fp_in, fp_out, stat_out):
     )
 
     root = '/'.join(fp.split('/')[:-1])
-    dirs = glob.glob(os.path.join(root, '*/'))
-    for dire in dirs:
-        os.rmdir(dire)
+    years = [i for i in range(1985, 2023)]
+    for year in years:
+        dire = os.path.join(root, str(year))
+        if os.path.isdir(dire):
+            os.rmdir(dire)

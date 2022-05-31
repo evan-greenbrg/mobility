@@ -113,16 +113,16 @@ if __name__ == '__main__':
 
 
 
-river = 'Trinity'
-poly = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/Trinity.gpkg'
-root = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/TrinityUse'
-gif = 'true'
-out = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/TrinityUse'
-rivers = get_images(
-    river,
-    poly,
-    root, 
-    gif,
-    out
-)
-make_gifs(rivers, root, out)
+# river = 'Trinity'
+# poly = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/Trinity.gpkg'
+# root = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/TrinityUse'
+# gif = 'true'
+# out = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/TrinityUse'
+# rivers = get_images(
+#     river,
+#     poly,
+#     root, 
+#     gif,
+#     out
+# )
+# make_gifs(rivers, root, out)

@@ -8,7 +8,7 @@ from natsort import natsorted
 import ee
 from matplotlib import pyplot as plt
 import numpy as np
-from puller_fun import pull_watermasks
+from puller_fun import pull_image_watermasks
 from puller_fun import pull_esa
 from mobility_fun import get_mobility_rivers
 from gif_fun import make_gif
@@ -23,7 +23,7 @@ def make_gifs(rivers, root):
             glob.glob(os.path.join(root, f'{river}/*mobility.csv'))
         )[0]
         fp_in = os.path.join(
-            root, f'{river}/*.tif'
+            root, f'{river}/mask/*.tif'
         )
         fp_out = os.path.join(
             root, f'{river}/{river}_cumulative.gif'
@@ -42,12 +42,12 @@ if __name__ == '__main__':
     parser.add_argument('--poly', metavar='poly', type=str,
                         help='In path for the geopackage path')
 
-    parser.add_argument('--method', metavar='mask_method', type=str,
-                        choices=['jones', 'esa'],
+    parser.add_argument('--mask_method', metavar='mask_method', type=str,
+                        choices=['Jones', 'esa', 'Zou'],
                         help='Do you want to calculate mobility')
 
     parser.add_argument('--network_method', metavar='network_method', type=str,
-                        choices=['grwl', 'merit', 'largest'],
+                        choices=['grwl', 'merit', 'largest', 'all'],
                         default='grwl',
                         help='what method do you want to use to extract the network')
 
@@ -75,11 +75,12 @@ if __name__ == '__main__':
     export_images = False
     if args.images == 'true':
         export_images = True
-    if args.method == 'jones':
-        paths = pull_watermasks(
+    if (args.mask_method == 'Jones') or (args.mask_method == 'Zou'):
+        paths = pull_image_watermasks(
             args.poly, 
             args.out, 
             export_images, 
+            args.mask_method, 
             args.network_method, 
             args.network_path
         )
@@ -93,13 +94,12 @@ if __name__ == '__main__':
         make_gifs(list(paths.keys()), args.out)
 
 # 
-polygoin_path = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/Elwha/Elwha.gpkg'
-root = '/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/Elwha'
-path_list = natsorted(glob.glob('/Users/greenberg/Documents/PHD/Writing/Mobility_Proposal/GIS/Elwha/Trinity/*.tif'))
-river = 'elwha'
-export_images = False
-method = 'merit'
-merit_path = '/Users/greenberg/Documents/PHD/Projects/Mobility/river_networks/channel_networks_full.shp'
+# polygoin_path = '/Users/greenberg/Documents/PHD/Projects/Mobility/Parameter_space/52522/V6.gpkg'
+# root = '/Users/greenberg/Documents/PHD/Projects/Mobility/Parameter_space/52522'
+# river = 'V6'
+# export_images = False
+# method = 'merit'
+# merit_path = '/Users/greenberg/Documents/PHD/Projects/Mobility/river_networks/channel_networks_full.shp'
 
 # 
 # 

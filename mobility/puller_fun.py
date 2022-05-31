@@ -17,11 +17,12 @@ from natsort import natsorted
 from landsat_fun import getImageAllMonths
 from landsat_fun import getImageSpecificMonths
 from landsat_fun import getPolygon 
-from channel_mask_fun import getWater
+from channel_mask_fun import getWaterJones
+from channel_mask_fun import getWaterZou
 from channel_mask_fun import getRiverGRWL
 from channel_mask_fun import getRiverMERIT
+from channel_mask_fun import getRiverLARGEST
 from channel_mask_fun import getMERITfeatures 
-from channel_mask_fun import fillHoles
 from download_fun import ee_export_image
 from multiprocessing_fun import multiprocess
 
@@ -278,21 +279,10 @@ def crop_raster(raster, channel_belt):
     return raster
 
 
-def filter_images(images, mask, thresh=.2):
-    A = np.sum(mask)
-    images_clean = {}
-    images_keep = copy.deepcopy(images)
-    for year, image in images.items():
-        frac = np.sum(image[np.where(mask)]) / A
-        if frac < thresh:
-            images_keep.pop(year)
-
-    return images_keep
-
-
 def get_pull_months(year, poly, root, name, 
                     bot=40, top=80, 
-                    method='grwl', network=None):
+                    mask_method='Jones',
+                    network_method='grwl', network=None):
     
     out_path = os.path.join(
         root, 
@@ -314,20 +304,25 @@ def get_pull_months(year, poly, root, name,
 
     multiprocess(tasks)
 
-    bound = image.geometry()
-# Get river masks
     fps = natsorted(glob.glob(os.path.join(root, '*_month.tif')))
     rivers = []
     for fp in fps:
         ds = rasterio.open(fp)
-        water = getWater(ds).astype(int)
-        if method == 'grwl':
-            grwl = ee.FeatureCollection(
-                "projects/sat-io/open-datasets/GRWL/water_vector_v01_01"
-            )
-            river = getRiverGRWL(water, ds.transform, bound, grwl)
-        elif method == 'merit':
+
+        if mask_method == 'Jones':
+            water = getWaterJones(ds).astype(int)
+        elif mask_method =='Zou':
+            water = getWaterZou(ds).astype(int)
+
+        if network_method == 'grwl':
+            bound = image.geometry()
+            river = getRiverGRWL(water, ds.transform, bound)
+        elif network_method == 'merit':
             river = getRiverMERIT(water, ds.transform, network)
+        elif network_method == 'largest':
+            river = getRiverLARGEST(water)
+        else:
+            river = water
 
         rivers.append(river)
 
@@ -373,14 +368,9 @@ def pullYearESA(year, poly, root, name, chunk_i, pull_months):
 
 
 def pullYearMask(year, poly, root, name, chunk_i, pull_months,
-                 export_images=False, method='grwl', network=None):
+                 export_images=False, mask_method='Jones',
+                 network_method='grwl', network=None):
 
-    # constants
-    grwl = ee.FeatureCollection(
-        "projects/sat-io/open-datasets/GRWL/water_vector_v01_01"
-    )
-
-    # outs
     out_path = os.path.join(
         root, 
         str(year),
@@ -392,27 +382,34 @@ def pullYearMask(year, poly, root, name, chunk_i, pull_months,
     if not image.bandNames().getInfo():
         return None
 
-    bound = image.geometry()
     ee_export_image(
         image,
         filename=out_path.format(name, year, f'image_{chunk_i}'),
         scale=30,
         file_per_band=False
     )
+
     ds = rasterio.open(out_path.format(name, year, f'image_{chunk_i}'))
-    water = getWater(ds).astype(int)
-    if method == 'grwl':
+
+
+    if mask_method == 'Jones':
+        water = getWaterJones(ds).astype(int)
+    elif mask_method =='Zou':
+        water = getWaterZou(ds).astype(int)
+
+    if network_method == 'grwl':
+        bound = image.geometry()
         river_im = getRiverGRWL(
-            water, ds.transform, bound, grwl
+            water, ds.transform, bound
         )
-    elif method == 'merit':
-        ### NEEED TO BRING METHOD TO SAMPLE MERIT VECTOR OUT OF LOOP
+    elif network_method == 'merit':
         river_im = getRiverMERIT(
             water, ds.transform, network 
         )
-
-#    river_im = getRiver(water, ds.transform, bound, grwl)
-#    river_im = getLargest(water)
+    elif network_method == 'largest':
+        river_im = getRiverLARGEST(water)
+    else:
+        river_im = water
 
     if not len(river_im):
         if not export_images:
@@ -436,19 +433,23 @@ def pullYearMask(year, poly, root, name, chunk_i, pull_months,
     return river_im
 
 
-def pull_watermasks(polygon_path, root, export_images, 
-                    method='grwl', merit_path=None):
+def pull_image_watermasks(polygon_path, root, export_images, 
+                          mask_method='Jones', network_method='grwl', 
+                          merit_path=None):
+
     years = [i for i in range(1985, 2020)]
     river_polys = getPolygon(polygon_path, root)
     river_paths = {}
     for river, polys in river_polys.items():
         print()
         print(river)
+
         # Get merit features
-        networks = None
-        if merit_path:
+        if network_method == 'merit':
             print('finding networks')
             networks = getMERITfeatures(polys, merit_path)
+        else:
+            networks = [None for i in polys]
 
         # Make river dir 
         year_root = os.path.join(root, river)
@@ -457,9 +458,10 @@ def pull_watermasks(polygon_path, root, export_images,
         # Pull yearly images
         pull_months = get_pull_months(
             2018, polys[0], year_root, river, 
-            40, 80,
-            method, networks[0] 
+            40, 80, mask_method,
+            network_method, networks[0] 
         )
+
         print(pull_months)
         tasks = []
         for j, year in enumerate(years):
@@ -474,7 +476,7 @@ def pull_watermasks(polygon_path, root, export_images,
                     (
                         year, poly, year_root, 
                         river, i, pull_months, export_images,
-                        method, networks[i]
+                        mask_method, network_method, networks[i]
                     )
                 ))
         multiprocess(tasks)
@@ -488,7 +490,7 @@ def pull_watermasks(polygon_path, root, export_images,
                     year_root, year, river, pattern
                 )
 
-            # mask
+            # Mask
             pattern = 'mask'
             out_fp = mosaic_images(
                 year_root, year, river, pattern
@@ -526,8 +528,14 @@ def mosaic_images(year_root, year, river, pattern):
         "transform": out_trans,
     })
 
-    out_path = os.path.join(
+    out_root = os.path.join(
         year_root, 
+        f'{pattern}'
+    )
+    os.makedirs(out_root, exist_ok=True)
+
+    out_path = os.path.join(
+        out_root, 
         '{}_{}_{}.tif'
     )
     out_fp = out_path.format(river, year, f'full_{pattern}')
