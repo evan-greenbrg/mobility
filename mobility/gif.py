@@ -275,3 +275,22 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         dire = os.path.join(root, str(year))
         if os.path.isdir(dire):
             os.rmdir(dire)
+
+
+def make_gifs(river, root):
+    print(river)
+    fps = sorted(
+        glob.glob(os.path.join(root, f'{river}/*mobility_block*.csv'))
+    )
+    fp_in = os.path.join(
+        root, f'{river}/mask/*block_0.tif'
+    )
+    fp_out = os.path.join(
+        root, f'{river}/{river}_cumulative.gif'
+    )
+    stat_out = os.path.join(
+        root, f'{river}/{river}_mobility_stats.csv'
+    )
+    make_gif(fps, fp_in, fp_out, stat_out)
+
+

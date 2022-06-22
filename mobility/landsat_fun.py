@@ -58,7 +58,7 @@ def getLandsatCollection():
     return(merged)
 
 
-def getImage(year, polygon):
+def get_image(year, polygon):
     """
     Set up server-side image object
     """
@@ -79,7 +79,7 @@ def getImage(year, polygon):
     ).select(band_names)
 
 
-def getMonthImageAllPolys(year, polys, month):
+def get_month_image_all_polys(year, polys, month):
     months = {
         '01': '31',
         '02': '28',
@@ -112,44 +112,7 @@ def getMonthImageAllPolys(year, polys, month):
         ).select(band_names)
 
 
-
-def getImageAllMonths(year, polygon):
-    """
-    Set up server-side image object
-    """
-    # Get begining and end
-    months = {
-        '01': '31',
-        '02': '28',
-        '03': '31',
-        '04': '30',
-        '05': '31',
-        '06': '30',
-        '07': '31',
-        '08': '31',
-        '09': '30',
-        '10': '31',
-        '11': '30',
-        '12': '31',
-    }
-    for month, day in months.items():
-        begin = str(year) + '-' + month + '-01'
-        end = str(year) + '-' + month + '-' + day 
-
-        band_names = ['uBlue', 'Blue', 'Green', 'Red', 'Swir1', 'Nir', 'Swir2']
-        allLandsat = getLandsatCollection()
-
-        # Filter image collection by
-        yield allLandsat.map(
-            maskL8sr
-        ).filterDate(
-            begin, end 
-        ).median().clip(
-            polygon
-        ).select(band_names)
-
-
-def getImageSpecificMonths(year, pull_months, polygon):
+def get_image_specific_months(year, pull_months, polygon):
     """
     Set up server-side image object
     """
@@ -195,33 +158,6 @@ def getImageSpecificMonths(year, pull_months, polygon):
 #     )
 
 
-def splitPolygon(shape, nx, ny):
-    minx, miny, maxx, maxy = shape.bounds
-    dx = (maxx - minx) / nx
-    dy = (maxy - miny) / ny
-
-    minx, miny, maxx, maxy = shape.bounds
-    dx = (maxx - minx) / nx  # width of a small part
-    dy = (maxy - miny) / ny  # height of a small part
-
-    horizontal_splitters = [
-        LineString([(minx, miny + i*dy), (maxx, miny + i*dy)]) 
-        for i in range(ny)
-    ]
-    vertical_splitters = [
-        LineString([(minx + i*dx, miny), (minx + i*dx, maxy)]) 
-        for i in range(nx)
-    ]
-
-    splitters = horizontal_splitters + vertical_splitters
-    result = shape 
-
-    for splitter in splitters:
-        result = MultiPolygon(split(result, splitter))   
-
-    return result
-
-
 def requestParams(filename, scale, image):
     filename = os.path.abspath(filename)
     basename = os.path.basename(filename)
@@ -235,79 +171,16 @@ def requestParams(filename, scale, image):
     return params
 
 
-def getPolygon(polygon_path, root, year=2018):
+def surface_water_image(year, polygon):
+    sw = ee.ImageCollection("JRC/GSW1_3/YearlyHistory")
 
-    out_path = os.path.join(
-        root, 
-        '{}_{}_{}.tif'
+    begin = str(year) + f'-01' + '-01'
+    end = str(year) + f'-12' + f'-31'
+
+    return sw.filterDate(
+        begin, end
+    ).median().clip(
+        polygon
     )
-    filename = out_path.format('temp', year, 'river')
-
-    # Load initial polygon
-    polygon_name = polygon_path.split('/')[-1].split('.')[0]
-    river_polys = {}
-    with fiona.open(polygon_path, layer=polygon_name) as layer:
-        for feature in layer:
-            geom = feature['geometry']
-            river = feature['properties'].get('River', 'River')
-            poly_shape = Polygon(geom['coordinates'][0])
-            poly = ee.Geometry.Polygon(geom['coordinates'])
-
-            image = getImage(year, poly)
-            bound = image.geometry()
-
-            params = requestParams(out_path, 30, image)
-
-            outcomes = []
-            try:
-                url = image.getDownloadURL(params)
-                outcomes.append(True)
-                river_polys[river] = [poly]
-                continue
-
-            except:
-                outcomes.append(False)
-
-            nx = 2
-            ny = 2
-            while False in outcomes:
-                shapes = [
-                    i 
-                    for i in splitPolygon(poly_shape, nx, ny)
-                ]
-                nx += 1
-                ny += 1
-                outcomes = []
-
-                for shape in shapes:
-                    coordinates = np.swapaxes(
-                        np.array(shape.exterior.xy), 0, 1
-                    ).tolist()
-                    poly = ee.Geometry.Polygon(coordinates)
-
-                    image = getImage(year, poly)
-                    params = requestParams(out_path, 30, image)
-
-                    try:
-                        url = image.getDownloadURL(params)
-                        outcomes.append(True)
-                    except:
-                        outcomes.append(False)
-
-            shapes = [
-                i 
-                for i in splitPolygon(poly_shape, nx+1, ny+1)
-            ]
-            polys = []
-            for shape in shapes:
-                coordinates = np.swapaxes(
-                    np.array(shape.exterior.xy), 0, 1
-                ).tolist()
-                polys.append(ee.Geometry.Polygon(coordinates))
-
-            river_polys[river] = polys
-
-    return river_polys
-
 
 
