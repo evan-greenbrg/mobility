@@ -8,43 +8,46 @@ from puller_fun import create_mask_shape
 
 def get_mobility_rivers(poly, paths, out):
     rivers = []
-    for river, path_list in paths.items():
-        # mask stuff
-        mask = create_mask_shape(
-            poly,
-            river,
-            path_list
-        )
-
-        images, metas = clean_esa(
-            poly, 
-            river, 
-            path_list
-        )
-
-        river_dfs = get_mobility_yearly(
-            images,
-            mask,
-        )
-
-        full_df = pandas.DataFrame()
-        for year, df in river_dfs.items():
-            rnge = f"{year}_{df.iloc[-1]['year']}"
-            df['dt'] = pandas.to_datetime(
-                df['year'],
-                format='%Y'
-            )
-            df['range'] = rnge
-
-            full_df = full_df.append(df)
-
-        out_path = os.path.join(
-            out,
-            river,
-            f'{river}_yearly_mobility.csv'
-        )
-        full_df.to_csv(out_path)
+    for river, path_blocks in paths.items():
+        print(river)
         rivers.append(river)
+        for block, path_list in enumerate(path_blocks):
+            path_list = sorted(path_list)
+        # mask stuff
+            mask = create_mask_shape(
+                poly,
+                river,
+                path_list
+            )
+
+            images, metas = clean_esa(
+                poly, 
+                river, 
+                path_list
+            )
+
+            river_dfs = get_mobility_yearly(
+                images,
+                mask,
+            )
+
+            full_df = pandas.DataFrame()
+            for year, df in river_dfs.items():
+                rnge = f"{year}_{df.iloc[-1]['year']}"
+                df['dt'] = pandas.to_datetime(
+                    df['year'],
+                    format='%Y'
+                )
+                df['range'] = rnge
+
+                full_df = full_df.append(df)
+
+            out_path = os.path.join(
+                out,
+                river,
+                f'{river}_yearly_mobility_block_{block}.csv'
+            )
+            full_df.to_csv(out_path)
 
     return rivers
 

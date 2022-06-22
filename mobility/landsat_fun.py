@@ -79,6 +79,40 @@ def getImage(year, polygon):
     ).select(band_names)
 
 
+def getMonthImageAllPolys(year, polys, month):
+    months = {
+        '01': '31',
+        '02': '28',
+        '03': '31',
+        '04': '30',
+        '05': '31',
+        '06': '30',
+        '07': '31',
+        '08': '31',
+        '09': '30',
+        '10': '31',
+        '11': '30',
+        '12': '31',
+    }
+    day = months[month]
+    begin = str(year) + '-' + month + '-01'
+    end = str(year) + '-' + month + '-' + day 
+
+    band_names = [
+        'uBlue', 'Blue', 'Green', 'Red', 'Swir1', 'Nir', 'Swir2'
+    ]
+    allLandsat = getLandsatCollection()
+    for poly in polys:
+        yield allLandsat.map(
+            maskL8sr
+        ).filterDate(
+            begin, end 
+        ).median().clip(
+           poly 
+        ).select(band_names)
+
+
+
 def getImageAllMonths(year, polygon):
     """
     Set up server-side image object
@@ -215,7 +249,7 @@ def getPolygon(polygon_path, root, year=2018):
     with fiona.open(polygon_path, layer=polygon_name) as layer:
         for feature in layer:
             geom = feature['geometry']
-            river = feature['properties'].get('River', '')
+            river = feature['properties'].get('River', 'River')
             poly_shape = Polygon(geom['coordinates'][0])
             poly = ee.Geometry.Polygon(geom['coordinates'])
 

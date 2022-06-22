@@ -31,20 +31,38 @@ def fit_curve(x, y, fun):
     return (*popt), r_squared
 
 
-def make_gif(fp, fp_in, fp_out, stat_out):
-    imgs = [f for f in natsorted(glob.glob(fp_in))]
-    full_df = pandas.read_csv(fp)
+def make_gif(fps, fp_in, fp_out, stat_out):
 
+    # Handle mobility dataframes 
+    full_dfs = [pandas.read_csv(fp) for fp in fps]
+    full_dfs_clean = []
+    for full_df in full_dfs:
+        full_df_clean = pandas.DataFrame()
+        for group, df in full_df.groupby('range'):
+            df['x'] = df['year'] - df.iloc[0]['year']
+            full_df_clean = full_df_clean.append(df)
+        full_dfs_clean.append(full_df_clean)
+
+    # Stack all blocks
+    full_df = pandas.DataFrame()
+    for df in full_dfs_clean:
+        full_df = full_df.append(df)
+
+    # Handle images
+    imgs = [f for f in natsorted(glob.glob(fp_in))]
     years = {}
     for im in imgs:
-        year = im.split('_')[-3].split('.')[0]
+        year = im.split('/')[-1].split('_')[1]
         print(year)
         years[str(year)] = im
 
     year_keys = list(full_df['year'].unique())
     years_filt = {}
     for key in year_keys:
-        years_filt[key] = years[str(key)]
+        year_im = years.get(str(key), None)
+        if not year_im:
+            continue
+        years_filt[key] = year_im 
 
     years = years_filt
     year_keys = list(years.keys())
@@ -67,16 +85,6 @@ def make_gif(fp, fp_in, fp_out, stat_out):
         imgs.append(image)
         agrs.append(ag_save)
         combos.append(combo)
-
-    # Get Curve fits
-    full_df_clean = pandas.DataFrame()
-    for group, df in full_df.groupby('range'):
-        df['x'] = df['year'] - df.iloc[0]['year']
-        full_df_clean = full_df_clean.append(df)
-
-    full_df = full_df_clean
-    full_df_clean = None
-#    full_df = full_df.dropna(subset=['x', 'O_Phi', 'fR'])
 
     avg_df = full_df.groupby('x').median().reset_index(drop=False).iloc[:20]
 #    avg_df = full_df.groupby('x').median().reset_index(drop=False)
@@ -116,12 +124,12 @@ def make_gif(fp, fp_in, fp_out, stat_out):
         'R_3': [round(r_3, 8), round(f_r2_3, 8)],
         'AR_3': [round(ar_3, 8), None],
         'PR_3': [round(pr_3, 8), None],
-        'M_2': [round(m_2, 8), round(o_r2_2, 8)],
-        'AM_2': [round(ar_2, 8), None],
-        'PM_2': [round(pr_2, 8), None],
-        'R_2': [round(r_2, 8), round(f_r2_2, 8)],
-        'AR_2': [round(ar_2, 8), None],
-        'PR_2': [round(pr_2, 8), None],
+#        'M_2': [round(m_2, 8), round(o_r2_2, 8)],
+#        'AM_2': [round(ar_2, 8), None],
+#        'PM_2': [round(pr_2, 8), None],
+#        'R_2': [round(r_2, 8), round(f_r2_2, 8)],
+#        'AR_2': [round(ar_2, 8), None],
+#        'PR_2': [round(pr_2, 8), None],
     })
     stats.to_csv(stat_out)
 
@@ -208,7 +216,7 @@ def make_gif(fp, fp_in, fp_out, stat_out):
                 color='red'
             )
         ax2.set_ylabel('Remaining Rework Fraction')
-        ax2.set_ylim([0, 2])
+#        ax2.set_ylim([0, 2])
         ax2.legend(
             loc='upper left',
             frameon=True
@@ -261,7 +269,7 @@ def make_gif(fp, fp_in, fp_out, stat_out):
         loop=30
     )
 
-    root = '/'.join(fp.split('/')[:-1])
+    root = '/'.join(fps[0].split('/')[:-1])
     years = [i for i in range(1985, 2023)]
     for year in years:
         dire = os.path.join(root, str(year))
