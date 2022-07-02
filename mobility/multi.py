@@ -1,16 +1,13 @@
-import time
-import random
 from multiprocessing import Process
 from multiprocessing import Queue
 from multiprocessing import current_process
-from multiprocessing import freeze_support
 from multiprocessing import cpu_count
 
-import ee
-
+from download import ee_export_image
 #
 # Function run by worker processes
 #
+
 
 def worker(input, output):
     for func, args in iter(input.get, 'STOP'):
@@ -31,6 +28,7 @@ def export(image, out):
         30
     )
     return True
+
 
 def multiprocess(tasks):
     NUMBER_OF_PROCESSES = cpu_count() - 1

@@ -1,10 +1,6 @@
-import os
 import numpy as np
-import pandas
 import fiona
 import rasterio
-import ee
-import numpy as np
 
 
 def create_mask_shape(polygon_path, river, fps):
@@ -28,14 +24,9 @@ def create_mask_shape(polygon_path, river, fps):
 
 
 def clean_esa(poly, river, fps):
-    grwl = ee.FeatureCollection(
-        "projects/sat-io/open-datasets/GRWL/water_vector_v01_01"
-    )
-
     polygon_name = poly.split('/')[-1].split('.')[0]
     with fiona.open(poly, layer=polygon_name) as layer:
         for feature in layer:
-            bound = ee.geometry.Geometry(feature['geometry'])
             geom = feature['geometry']
 
     images = {}
@@ -43,7 +34,6 @@ def clean_esa(poly, river, fps):
     for fp in fps:
         year = fp.split('/')[-1].split('_')[1]
         ds = rasterio.open(fp)
-        raw_image = ds.read(1)
 
         image, tf = rasterio.mask.mask(
             ds, [geom],
@@ -63,7 +53,7 @@ def clean_esa(poly, river, fps):
             dtype=rasterio.int8
         )
 
-        images[year] = water 
+        images[year] = water
         metas[year] = meta
 
         with rasterio.open(fp, "w", **meta) as dest:

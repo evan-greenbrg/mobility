@@ -1,31 +1,19 @@
-import time
-import fiona
-import copy
 import glob
 import os
 import ee
-from scipy import stats
 import fiona
 import rasterio
+from shapely.geometry import Polygon
+from shapely.geometry import LineString
+from shapely.geometry import MultiPolygon
+from shapely.ops import split
 import rasterio.mask
 from rasterio.merge import merge
-from skimage import measure, draw
-import pandas
 import numpy as np
-import geemap as geemap
-from natsort import natsorted
 import warnings
 
-from landsat_fun import get_image 
-from landsat_fun import get_month_image_all_polys
-from watermask_methods import get_water_Jones
-from watermask_methods import get_water_Zou
-from river_filters import get_river_GRWL
-from river_filters import get_river_MERIT
-from river_filters import get_river_largest
-from merit_helpers import get_MERIT_features 
-from download_fun import ee_export_image
-from multiprocessing_fun import multiprocess
+from landsat import get_image
+from landsat import request_params
 
 
 # ee.Authenticate()
@@ -34,16 +22,42 @@ warnings.filterwarnings("ignore")
 
 # Initialize multiprocessing
 MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08',
-    '09', '10', '11', '12', ]
+          '09', '10', '11', '12', ]
+
+
+def split_polygon(shape, nx, ny):
+    minx, miny, maxx, maxy = shape.bounds
+    dx = (maxx - minx) / nx
+    dy = (maxy - miny) / ny
+
+    minx, miny, maxx, maxy = shape.bounds
+    dx = (maxx - minx) / nx  # width of a small part
+    dy = (maxy - miny) / ny  # height of a small part
+
+    horizontal_splitters = [
+        LineString([(minx, miny + i*dy), (maxx, miny + i*dy)])
+        for i in range(ny)
+    ]
+    vertical_splitters = [
+        LineString([(minx + i*dx, miny), (minx + i*dx, maxy)])
+        for i in range(nx)
+    ]
+
+    splitters = horizontal_splitters + vertical_splitters
+    result = shape
+
+    for splitter in splitters:
+        result = MultiPolygon(split(result, splitter))
+
+    return result
 
 
 def get_polygon(polygon_path, root, year=2018):
 
     out_path = os.path.join(
-        root, 
-        '{}_{}_{}.tif'
+        root,
+        '{}_{}_{}.tif'.format('temp', year, 'river')
     )
-    filename = out_path.format('temp', year, 'river')
 
     # Load initial polygon
     polygon_name = polygon_path.split('/')[-1].split('.')[0]
@@ -55,16 +69,14 @@ def get_polygon(polygon_path, root, year=2018):
             poly = ee.Geometry.Polygon(geom['coordinates'])
 
             image = get_image(year, poly)
-            bound = image.geometry()
 
-            params = requestParams(out_path, 30, image)
+            params = request_params(out_path, 30, image)
 
             outcomes = []
             try:
                 url = image.getDownloadURL(params)
                 outcomes.append(True)
-                river_polys[river] = [poly]
-                continue
+                return [poly]
 
             except:
                 outcomes.append(False)
@@ -73,8 +85,8 @@ def get_polygon(polygon_path, root, year=2018):
             ny = 2
             while False in outcomes:
                 shapes = [
-                    i 
-                    for i in splitPolygon(poly_shape, nx, ny)
+                    i
+                    for i in split_polygon(poly_shape, nx, ny)
                 ]
                 nx += 1
                 ny += 1
@@ -87,7 +99,7 @@ def get_polygon(polygon_path, root, year=2018):
                     poly = ee.Geometry.Polygon(coordinates)
 
                     image = get_image(year, poly)
-                    params = requestParams(out_path, 30, image)
+                    params = request_params(out_path, 30, image)
 
                     try:
                         url = image.getDownloadURL(params)
@@ -96,8 +108,8 @@ def get_polygon(polygon_path, root, year=2018):
                         outcomes.append(False)
 
             shapes = [
-                i 
-                for i in splitPolygon(poly_shape, nx+1, ny+1)
+                i
+                for i in split_polygon(poly_shape, nx+1, ny+1)
             ]
             polys = []
             for shape in shapes:
@@ -116,7 +128,7 @@ def mosaic_images(year_root, year, river, pull_i, pattern):
         year_root, str(year), pattern_format
     ))
     if not fps:
-        return None 
+        return None
 
     mosaics = []
     for fp in fps:
@@ -133,13 +145,13 @@ def mosaic_images(year_root, year, river, pull_i, pattern):
     })
 
     out_root = os.path.join(
-        year_root, 
+        year_root,
         f'{pattern}'
     )
     os.makedirs(out_root, exist_ok=True)
 
     out_path = os.path.join(
-        out_root, 
+        out_root,
         '{}_{}_{}.tif'
     )
     out_fp = out_path.format(river, year, f'full_{pattern}_block_{pull_i}')

@@ -1,19 +1,13 @@
-import csv
-import datetime
-import io
-import json
-import math
+import time
 import os
 import requests
-import shutil
-import tarfile
-import urllib.request
 import zipfile
 
 import ee
 
 # Modified from:
 # https://github.com/giswqs/geemap/blob/master/geemap/common.py
+
 
 def ee_export_image(
     ee_object,
@@ -40,6 +34,8 @@ def ee_export_image(
     if not isinstance(ee_object, ee.Image):
         print("The ee_object must be an ee.Image.")
         return
+
+    time.sleep(1)
 
     filename = os.path.abspath(filename)
     basename = os.path.basename(filename)
@@ -83,7 +79,7 @@ def ee_export_image(
             for chunk in r.iter_content(chunk_size=1024):
                 fd.write(chunk)
 
-    except Exception as e:
+    except Exception:
         print("An error occurred while downloading.")
         print(r.json()["error"]["message"])
         raise ee.EEException

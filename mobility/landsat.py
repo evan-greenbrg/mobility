@@ -1,16 +1,6 @@
-import numpy as np
-import argparse
 import os
 import ee
 import ee.mapclient
-import fiona
-import rasterio
-from IPython.display import HTML, display, Image
-from matplotlib import pyplot as plt
-# import geemap.foliumap as geemap
-import geemap as geemap
-from shapely.geometry import LineString, MultiPolygon, Polygon
-from shapely.ops import split
 
 # ee.Authenticate()
 ee.Initialize()
@@ -18,7 +8,7 @@ ee.Initialize()
 
 def maskL8sr(image):
     """
-    Masks out clouds within the images 
+    Masks out clouds within the images
     """
     # Bits 3 and 5 are cloud shadow and cloud
     cloudShadowBitMask = (1 << 3)
@@ -35,10 +25,10 @@ def maskL8sr(image):
 
 def getLandsatCollection():
     """
-    merge landsat 5, 7, 8 collection 1 
+    merge landsat 5, 7, 8 collection 1
     tier 1 SR imageCollections and standardize band names
     """
-    ## standardize band names
+    # standardize band names
     bn8 = ['B1', 'B2', 'B3', 'B4', 'B6', 'pixel_qa', 'B5', 'B7']
     bn7 = ['B1', 'B1', 'B2', 'B3', 'B5', 'pixel_qa', 'B4', 'B7']
     bn5 = ['B1', 'B1', 'B2', 'B3', 'B5', 'pixel_qa', 'B4', 'B7']
@@ -73,7 +63,7 @@ def get_image(year, polygon):
     return allLandsat.map(
         maskL8sr
     ).filterDate(
-        begin, end 
+        begin, end
     ).median().clip(
         polygon
     ).select(band_names)
@@ -96,7 +86,7 @@ def get_month_image_all_polys(year, polys, month):
     }
     day = months[month]
     begin = str(year) + '-' + month + '-01'
-    end = str(year) + '-' + month + '-' + day 
+    end = str(year) + '-' + month + '-' + day
 
     band_names = [
         'uBlue', 'Blue', 'Green', 'Red', 'Swir1', 'Nir', 'Swir2'
@@ -106,9 +96,9 @@ def get_month_image_all_polys(year, polys, month):
         yield allLandsat.map(
             maskL8sr
         ).filterDate(
-            begin, end 
+            begin, end
         ).median().clip(
-           poly 
+           poly
         ).select(band_names)
 
 
@@ -117,7 +107,6 @@ def get_image_specific_months(year, pull_months, polygon):
     Set up server-side image object
     """
     # Get begining and end
-    band_names = ['uBlue', 'Blue', 'Green', 'Red', 'Swir1', 'Nir', 'Swir2']
     months = {
         '01': '31',
         '02': '28',
@@ -143,7 +132,7 @@ def get_image_specific_months(year, pull_months, polygon):
         images = images.add(allLandsat.map(
             maskL8sr
         ).filterDate(
-            begin, end 
+            begin, end
         ).median().clip(
             polygon
         ))
@@ -153,18 +142,15 @@ def get_image_specific_months(year, pull_months, polygon):
     ).median().clip(
         polygon
     )
-#     ).select(
-#         band_names
-#     )
 
 
-def requestParams(filename, scale, image):
+def request_params(filename, scale, image):
     filename = os.path.abspath(filename)
     basename = os.path.basename(filename)
     name = os.path.splitext(basename)[0]
 
     params = {"name": name, "filePerBand": False}
-    params["scale"] = scale 
+    params["scale"] = scale
     region = image.geometry()
     params["region"] = region
 
@@ -174,13 +160,11 @@ def requestParams(filename, scale, image):
 def surface_water_image(year, polygon):
     sw = ee.ImageCollection("JRC/GSW1_3/YearlyHistory")
 
-    begin = str(year) + f'-01' + '-01'
-    end = str(year) + f'-12' + f'-31'
+    begin = str(year) + '-01' + '-01'
+    end = str(year) + '-12' + '-31'
 
     return sw.filterDate(
         begin, end
     ).median().clip(
         polygon
     )
-
-

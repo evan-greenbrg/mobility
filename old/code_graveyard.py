@@ -100,30 +100,5 @@ def getImageAllMonths(year, polygon):
         ).select(band_names)
 
 
-def splitPolygon(shape, nx, ny):
-    minx, miny, maxx, maxy = shape.bounds
-    dx = (maxx - minx) / nx
-    dy = (maxy - miny) / ny
-
-    minx, miny, maxx, maxy = shape.bounds
-    dx = (maxx - minx) / nx  # width of a small part
-    dy = (maxy - miny) / ny  # height of a small part
-
-    horizontal_splitters = [
-        LineString([(minx, miny + i*dy), (maxx, miny + i*dy)]) 
-        for i in range(ny)
-    ]
-    vertical_splitters = [
-        LineString([(minx + i*dx, miny), (minx + i*dx, maxy)]) 
-        for i in range(nx)
-    ]
-
-    splitters = horizontal_splitters + vertical_splitters
-    result = shape 
-
-    for splitter in splitters:
-        result = MultiPolygon(split(result, splitter))   
-
-    return result
 
 

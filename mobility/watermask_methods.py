@@ -1,19 +1,4 @@
 import numpy as np
-import argparse
-import geopandas
-import os
-import ee
-import ee.mapclient
-import fiona
-import rasterio
-from skimage import measure, draw, morphology, feature, graph
-from shapely.geometry import MultiLineString, LineString, Polygon
-from shapely import ops
-from IPython.display import HTML, display, Image
-from matplotlib import pyplot as plt
-import geemap as geemap
-from skimage.graph import MCP 
-from skimage.measure import label
 
 
 def Mndwi(ds):
@@ -22,21 +7,25 @@ def Mndwi(ds):
         / (ds.read(3) + ds.read(5))
     )
 
+
 def Mbsrv(ds):
     return (
         ds.read(3) + ds.read(4)
     )
+
 
 def Mbsrn(ds):
     return (
         ds.read(6) + ds.read(5)
     )
 
+
 def Ndvi(ds):
     return (
         (ds.read(6) - ds.read(4))
         / (ds.read(6) + ds.read(4))
     )
+
 
 def Awesh(ds):
     return (
@@ -54,17 +43,16 @@ def Evi(ds):
     blue = ds.read(1)
 
     return (
-        2.5 
-        * (nir - red) 
+        2.5
+        * (nir - red)
         / (1 + nir + (6 * red) - (7.5 * blue))
     )
 
 
 def get_water_Zou(ds):
-    arr = np.empty((ds.shape[0], ds.shape[1], 3))
-    mndwi = Mndwi(ds) # mndwi
-    ndvi = Ndvi(ds) # ndvi 
-    evi = Evi(ds) # evi 
+    mndwi = Mndwi(ds)   # mndwi
+    ndvi = Ndvi(ds)     # ndvi
+    evi = Evi(ds)       # evi
 
     water = np.zeros(ds.shape)
     where = np.where(
@@ -81,15 +69,15 @@ def get_water_Zou(ds):
 
 def get_water_Jones(ds):
     arr = np.empty((ds.shape[0], ds.shape[1], 9))
-    arr[:, :, 0] = Mndwi(ds) # mndwi
-    arr[:, :, 1] = Mbsrv(ds) # mbsrv
-    arr[:, :, 2] = Mbsrn(ds) # mbsrn
-    arr[:, :, 3] = Ndvi(ds) # ndvi
-    arr[:, :, 4] = Awesh(ds) # awesh
-    arr[:, :, 5] = ds.read(5) # swir1
-    arr[:, :, 6] = ds.read(6) # nir
-    arr[:, :, 7] = ds.read(2) # blue
-    arr[:, :, 8] = ds.read(7) # swir2
+    arr[:, :, 0] = Mndwi(ds)    # mndwi
+    arr[:, :, 1] = Mbsrv(ds)    # mbsrv
+    arr[:, :, 2] = Mbsrn(ds)    # mbsrn
+    arr[:, :, 3] = Ndvi(ds)     # ndvi
+    arr[:, :, 4] = Awesh(ds)    # awesh
+    arr[:, :, 5] = ds.read(5)   # swir1
+    arr[:, :, 6] = ds.read(6)   # nir
+    arr[:, :, 7] = ds.read(2)   # blue
+    arr[:, :, 8] = ds.read(7)   # swir2
 
     t1 = (arr[:, :, 0] > 0.124).astype(int)
     t2 = arr[:, :, 1] > arr[:, :, 2]
@@ -98,19 +86,19 @@ def get_water_Jones(ds):
     t4 = np.zeros(ds.shape)
     where = np.where(
         (arr[:, :, 0] > -0.44)
-        & (arr[:, :, 5] < 900) 
-        & (arr[:, :, 6] < 1500) 
-        & (arr[:, :, 3] < 0.7) 
+        & (arr[:, :, 5] < 900)
+        & (arr[:, :, 6] < 1500)
+        & (arr[:, :, 3] < 0.7)
     )
     t4[where] = 1
 
     t5 = np.zeros(ds.shape)
     where = np.where(
         (arr[:, :, 0] > -0.5)
-        & (arr[:, :, 7] < 1000) 
-        & (arr[:, :, 5] < 3000) 
-        & (arr[:, :, 8] < 1000) 
-        & (arr[:, :, 6] < 2500) 
+        & (arr[:, :, 7] < 1000)
+        & (arr[:, :, 5] < 3000)
+        & (arr[:, :, 8] < 1000)
+        & (arr[:, :, 6] < 2500)
     )
     t5[where] = 1
 

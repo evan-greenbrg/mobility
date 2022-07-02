@@ -1,34 +1,30 @@
 import time
-import fiona
-import copy
 import glob
 import os
 import ee
 from scipy import stats
-import fiona
+import geemap
 import rasterio
 import rasterio.mask
 from rasterio.merge import merge
-from skimage import measure, draw
-import pandas
 import numpy as np
-import geemap as geemap
 from natsort import natsorted
 import warnings
 
-from puller_helpers import get_polygon
-from merit_helpers import get_MERIT_features 
-from landsat_fun import get_month_image_all_polys
 from watermask_methods import get_water_Jones
 from watermask_methods import get_water_Zou
+from river_filters import get_MERIT_features
 from river_filters import get_river_MERIT
 from river_filters import get_river_GRWL
 from river_filters import get_river_largest
-from landsat_fun import get_image_specific_months
-from landsat_fun import surface_water_image
+from landsat import get_image_specific_months
+from landsat import surface_water_image
+from landsat import get_month_image_all_polys
 from download import ee_export_image
-from puller_helpers import mosaic_images 
-from multiprocessing_fun import multiprocess
+from puller_helpers import get_polygon
+from puller_helpers import mosaic_images
+from puller_helpers import get_quarters
+from multi import multiprocess
 
 
 # ee.Authenticate()
@@ -37,98 +33,68 @@ warnings.filterwarnings("ignore")
 
 # Initialize multiprocessing
 MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08',
-    '09', '10', '11', '12', ]
+          '09', '10', '11', '12', ]
 
 
-def pull_esa(polygon_path, out_root, export_images=False):
+def pull_esa(polygon_path, out_root, river, export_images=False):
 
     years = [i for i in range(1985, 2020)]
-    river_polys = get_polygon(polygon_path, out_root)
-    river_paths = {}
-
-    for river, polys in river_polys.items():
-
-        print()
-        print(river)
-        river_root = out_root.format(river)
-        os.makedirs(river_root, exist_ok=True)
-
-        # Make image dir 
-        year_root = os.path.join(river_root, 'temps')
-        os.makedirs(year_root, exist_ok=True)
-
-        out_paths = []
-
-        # Get months that are average-bankfull flow
-        pull_months = get_months(2018, polys[0], year_root, river)
-
-        for j, year in enumerate(years):
-            print(year)
-            time.sleep(5)
-
-            tasks = []
-            for i, poly in enumerate(polys):
-                tasks.append((
-                    pull_rear_ESA,
-                    (
-                        year, poly, year_root, 
-                        river, i, pull_months
-                    )
-                ))
-
-            multiprocess(tasks)
-
-            fps = glob.glob(os.path.join(year_root, '*mask*.tif'))
-            if not fps:
-                continue
-
-            mosaics = []
-            for fp in fps:
-                ds = rasterio.open(fp)
-                mosaics.append(ds)
-            meta = ds.meta.copy()
-            mosaic, out_trans = merge(mosaics)
-            
-            mosaic[mosaic < 2] = 0
-            mosaic[mosaic > 1] = 1
-
-            for fp in fps:
-                os.remove(fp)
-
-            if not np.sum(mosaic):
-                continue
-
-            # Update the metadata
-            meta.update({
-                "height": mosaic.shape[1],
-                "width": mosaic.shape[2],
-                "transform": out_trans,
-                "dtype": rasterio.uint8
-            })
-
-            out_path = os.path.join(
-                year_root, 
-                '{}_{}_{}.tif'
-            )
-            out_fp = out_path.format(river, year, 'full')
-            out_paths.append(out_fp)
-
-            with rasterio.open(out_fp, "w", **meta) as dest:
-                dest.write(mosaic.astype(rasterio.uint8))
-
-        river_paths[river] = out_paths
-
-    return river_paths
+    polys = get_polygon(polygon_path, out_root)
 
 
-def get_months(year, polys, root, name, 
+    print()
+    print(river)
+    river_root = out_root.format(river)
+    os.makedirs(river_root, exist_ok=True)
+
+    # Make image dir
+    year_root = os.path.join(river_root, 'temps')
+    os.makedirs(year_root, exist_ok=True)
+
+    out_paths = []
+
+    # Get months that are average-bankfull flow
+    pull_months = MONTHS
+#    pull_months = get_months(
+#        2014, polys, year_root, river,
+#        mask_method=mask_method,
+#        network_method=network_method,
+#        network=merit_path,
+#        period=period
+#    )
+
+    for j, year in enumerate(years):
+        print(year)
+        time.sleep(5)
+
+        tasks = []
+        for i, poly in enumerate(polys):
+            tasks.append((
+                pull_year_ESA,
+                (
+                    year, poly, year_root,
+                    river, i
+                )
+            ))
+
+        multiprocess(tasks)
+
+    for year_i, year in enumerate(years):
+        pattern = 'mask'
+        out_fp = mosaic_images(year_root, year, river, 0, pattern)
+        out_paths.append(out_fp)
+
+    return [out_paths] 
+
+
+def get_months(year, polys, root, name,
                bot=40, top=80,
-               mask_method='Jones', 
+               mask_method='Jones',
                network_method='grwl',
                network=None, period='min'):
 
     out_path = os.path.join(
-        root, 
+        root,
         '{}_{}_{}.tif'
     )
     monthly_water = []
@@ -142,7 +108,7 @@ def get_months(year, polys, root, name,
                 name, year, f'poly_{i}'
             )
             tasks.append((
-                ee_export_image, 
+                ee_export_image,
                 (image, out)
             ))
 
@@ -157,7 +123,7 @@ def get_months(year, polys, root, name,
 
             if mask_method == 'Jones':
                 water = get_water_Jones(ds).astype(int)
-            elif mask_method =='Zou':
+            elif mask_method == 'Zou':
                 water = get_water_Zou(ds).astype(int)
 
             if len(np.unique(water)) == 1:
@@ -176,9 +142,12 @@ def get_months(year, polys, root, name,
 
         monthly_water.append(water_pixels)
 
+    print()
+    print('monthly water')
+    print(monthly_water)
     percentiles = np.array([
-        stats.percentileofscore(monthly_water, i) 
-        for i in monthly_water 
+        stats.percentileofscore(monthly_water, i)
+        for i in monthly_water
     ])
     if period == 'bankfull':
         ns, = np.where((percentiles > bot) & (percentiles < top))
@@ -201,10 +170,10 @@ def get_months(year, polys, root, name,
     return pull_months
 
 
-def pull_year_ESA(year, poly, root, name, chunk_i, pull_months):
+def pull_year_ESA(year, poly, root, name, chunk_i):
     # outs
     out_path = os.path.join(
-        root, 
+        root,
         '{}_{}_{}.tif'
     )
 
@@ -213,7 +182,7 @@ def pull_year_ESA(year, poly, root, name, chunk_i, pull_months):
     if not image.bandNames().getInfo():
         return None
 
-    ee_export_image(
+    geemap.ee_export_image(
         image,
         filename=out_path.format(name, year, f'mask_{chunk_i}'),
         scale=30,
@@ -224,11 +193,14 @@ def pull_year_ESA(year, poly, root, name, chunk_i, pull_months):
 
 
 def pull_year_mask(year, poly, root, name, chunk_i, block_i, pull_month,
-                 export_images=False, mask_method='Jones',
-                 network_method='grwl', network=None):
+                   export_images=False, mask_method='Jones',
+                   network_method='grwl', network=None):
+
+    # See if pausing helpds with the time outs
+    time.sleep(1)
 
     out_path = os.path.join(
-        root, 
+        root,
         str(year),
         '{}_{}_{}.tif'
     )
@@ -239,11 +211,11 @@ def pull_year_mask(year, poly, root, name, chunk_i, block_i, pull_month,
         return None
 
     out = out_path.format(
-        name, 
-        year, 
+        name,
+        year,
         f'image_block_{block_i}_poly_{chunk_i}'
     )
-    status = ee_export_image(
+    _ = geemap.ee_export_image(
         image,
         filename=out,
         scale=30,
@@ -254,7 +226,7 @@ def pull_year_mask(year, poly, root, name, chunk_i, block_i, pull_month,
 
     if mask_method == 'Jones':
         water = get_water_Jones(ds).astype(int)
-    elif mask_method =='Zou':
+    elif mask_method == 'Zou':
         water = get_water_Zou(ds).astype(int)
 
     if network_method == 'grwl':
@@ -264,7 +236,7 @@ def pull_year_mask(year, poly, root, name, chunk_i, block_i, pull_month,
         )
     elif network_method == 'merit':
         river_im = get_river_MERIT(
-            water, ds.transform, network 
+            water, ds.transform, network
         )
     elif network_method == 'largest':
         river_im = get_river_largest(water)
@@ -283,8 +255,8 @@ def pull_year_mask(year, poly, root, name, chunk_i, block_i, pull_month,
     })
 
     out = out_path.format(
-        name, 
-        year, 
+        name,
+        year,
         f'mask_block_{block_i}_poly_{chunk_i}'
     )
 
@@ -294,9 +266,9 @@ def pull_year_mask(year, poly, root, name, chunk_i, block_i, pull_month,
     return river_im
 
 
-def pull_watermasks(polygon_path, root, river, export_images, 
-                          mask_method='Jones', network_method='grwl', 
-                          merit_path=None, period='bankfull'):
+def pull_watermasks(polygon_path, root, river, export_images,
+                    mask_method='Jones', network_method='grwl',
+                    merit_path=None, period='bankfull'):
 
     # Get small enough polygons
     years = [i for i in range(1985, 2020)]
@@ -309,14 +281,14 @@ def pull_watermasks(polygon_path, root, river, export_images,
     else:
         networks = [None for i in polys]
 
-    # Make river dir 
+    # Make river dir
     year_root = os.path.join(root, river)
     os.makedirs(year_root, exist_ok=True)
 
-    # Get blocks of months to pull 
+    # Get blocks of months to pull
     pull_months = get_months(
-        2018, polys, year_root, river, 
-        mask_method=mask_method, 
+        2014, polys, year_root, river,
+        mask_method=mask_method,
         network_method=network_method,
         network=merit_path,
         period=period
@@ -336,8 +308,8 @@ def pull_watermasks(polygon_path, root, river, export_images,
                 tasks.append((
                     pull_year_mask,
                     (
-                        year, poly, year_root, 
-                        river, poly_i, pull_i, 
+                        year, poly, year_root,
+                        river, poly_i, pull_i,
                         pull_month, export_images,
                         mask_method, network_method, networks[poly_i]
                     )

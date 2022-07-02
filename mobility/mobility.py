@@ -18,8 +18,8 @@ def get_mobility_rivers(poly, paths, out, river):
         )
 
         images, metas = clean_esa(
-            poly, 
-            river, 
+            poly,
+            river,
             path_list
         )
 
@@ -46,7 +46,7 @@ def get_mobility_rivers(poly, paths, out, river):
         )
         full_df.to_csv(out_path)
 
-    return river 
+    return river
 
 
 def get_mobility_yearly(images, mask):
@@ -91,13 +91,13 @@ def get_mobility_yearly(images, mask):
             im = all_images[:, :, j]
 
             kb = (
-                np.sum(all_images[:,:, :j + 1], axis=(2)) 
+                np.sum(all_images[:, :, :j + 1], axis=(2))
                 + mask
             )
             kb[np.where(kb != 1)] = 0
             Nb = np.sum(kb)
 #            fR = 1 - (Nb / (A * fd_b))
-            fR = (Na / w_b) - (Nb / w_b) 
+            fR = (Na / w_b) - (Nb / w_b)
 
             # Calculate D - EQ. (1)
             D = np.sum(np.abs(np.subtract(baseline, im)))
@@ -126,6 +126,5 @@ def get_mobility_yearly(images, mask):
 
         data['year'] = years
         river_dfs[yrange[0]] = pandas.DataFrame(data=data)
-
 
     return river_dfs
