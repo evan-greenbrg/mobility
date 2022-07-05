@@ -33,7 +33,7 @@ warnings.filterwarnings("ignore")
 
 # Initialize multiprocessing
 MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08',
-          '09', '10', '11', '12', ]
+          '09', '10', '11', '12']
 
 
 def pull_esa(polygon_path, out_root, river, export_images=False):
@@ -286,13 +286,16 @@ def pull_watermasks(polygon_path, root, river, export_images,
     os.makedirs(year_root, exist_ok=True)
 
     # Get blocks of months to pull
-    pull_months = get_months(
-        2014, polys, year_root, river,
-        mask_method=mask_method,
-        network_method=network_method,
-        network=merit_path,
-        period=period
-    )
+    if period == 'annual':
+        pull_months = [MONTHS]
+    else:
+        pull_months = get_months(
+            2014, polys, year_root, river,
+            mask_method=mask_method,
+            network_method=network_method,
+            network=merit_path,
+            period=period
+        )
     print(pull_months)
 
     # Iterate through all the years and all of the pull_months

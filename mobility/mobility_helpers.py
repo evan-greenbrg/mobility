@@ -57,6 +57,6 @@ def clean_esa(poly, river, fps):
         metas[year] = meta
 
         with rasterio.open(fp, "w", **meta) as dest:
-            dest.write(water.astype(rasterio.uint8), 1)
+            dest.write(water.astype(rasterio.int8), 1)
 
     return images, metas
