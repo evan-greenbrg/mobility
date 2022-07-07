@@ -1,14 +1,14 @@
 #!/bin/bash
-poly="/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Meandering/river_shapes/Castelli1.gpkg"
+poly="/Users/greenberg/Documents/PHD/Projects/Mobility/MethodsPaper/MeanderingRivers/Shapes/PNG6.gpkg"
 mask_method="Jones"     # Jones, Zou,
 network_method="grwl"   # grwl, merit, largest
-network_path="/Users/greenberg/Documents/PHD/Projects/Mobility/river_networks/channel_networks_full.shp"
+network_path="/Users/greenberg/Documents/PHD/Projects/Mobility/river_networks/channel_networks_full.shp"    # Needs to be on computer
 images="false"
 masks="true"
 mobility="true"
 gif="true"
-period="annual"  # annual, quarterly, bankfull, max, min
-out="/home/greenberg/ExtraSpace/PhD/Projects/Mobility/Meandering/river_shapes/"
-river="Castelli1"
+period="quarterly"  # annual, quarterly, bankfull, max, min
+out="/Users/greenberg/Documents/PHD/Projects/Mobility/MethodsPaper/MeanderingRivers/Shapes/"
+river="PNG6"
 
 python ../mobility/main.py --poly $poly --mask_method $mask_method --network_method $network_method --network_path $network_path --masks $masks --images $images --mobility $mobility --gif $gif --period $period --out $out --river $river
