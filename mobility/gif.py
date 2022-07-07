@@ -33,7 +33,7 @@ def fit_curve(x, y, fun):
 
 def make_gif(fps, fp_in, fp_out, stat_out):
 
-    # Handle mobility dataframes 
+    # Handle mobility dataframes
     full_dfs = [pandas.read_csv(fp) for fp in fps]
     full_dfs_clean = []
     for full_df in full_dfs:
@@ -62,7 +62,7 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         year_im = years.get(str(key), None)
         if not year_im:
             continue
-        years_filt[key] = year_im 
+        years_filt[key] = year_im
 
     years = years_filt
     year_keys = list(years.keys())
@@ -87,7 +87,6 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         combos.append(combo)
 
     avg_df = full_df.groupby('x').median().reset_index(drop=False).iloc[:20]
-#    avg_df = full_df.groupby('x').median().reset_index(drop=False)
     avg_df = avg_df.dropna(how='any')
 
     am_3, m_3, pm_3, o_r2_3 = fit_curve(
@@ -98,7 +97,6 @@ def make_gif(fps, fp_in, fp_out, stat_out):
 
     ar_3, r_3, pr_3, f_r2_3 = fit_curve(
         avg_df['x'],
-#        1 - avg_df['fR'].to_numpy(),
         avg_df['fR'].to_numpy(),
         func_3_param
     )
@@ -111,7 +109,6 @@ def make_gif(fps, fp_in, fp_out, stat_out):
 
     ar_2, r_2, pr_2, f_r2_2 = fit_curve(
         avg_df['x'],
-#        1 - avg_df['fR'].to_numpy(),
         avg_df['fR'].to_numpy(),
         func_2_param
     )
@@ -124,18 +121,11 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         'R_3': [round(r_3, 8), round(f_r2_3, 8)],
         'AR_3': [round(ar_3, 8), None],
         'PR_3': [round(pr_3, 8), None],
-#        'M_2': [round(m_2, 8), round(o_r2_2, 8)],
-#        'AM_2': [round(ar_2, 8), None],
-#        'PM_2': [round(pr_2, 8), None],
-#        'R_2': [round(r_2, 8), round(f_r2_2, 8)],
-#        'AR_2': [round(ar_2, 8), None],
-#        'PR_2': [round(pr_2, 8), None],
     })
     stats.to_csv(stat_out)
 
     o_pred_3 = func_3_param(avg_df['x'], am_3, m_3, pm_3)
     f_pred_3 = func_3_param(avg_df['x'], ar_3, r_3, pr_3)
-    f_pred_2 = func_2_param(avg_df['x'], ar_2, r_2, pr_2)
 
     # METHOD 2
     images = []
@@ -182,7 +172,6 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         )
         ax2.scatter(
             avg_df['x'],
-#            1 - avg_df['fR'],
             avg_df['fR'],
             zorder=4,
             s=70,
@@ -191,7 +180,6 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         )
         ax2.plot(
             avg_df['x'],
-#            1 - avg_df['fR'],
             avg_df['fR'],
             zorder=4,
             color='black',
@@ -199,7 +187,6 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         )
         ax2.scatter(
             full_df['x'],
-#            1 - full_df['fR'],
             full_df['fR'],
             zorder=2,
             s=50,
@@ -209,14 +196,12 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         if i < len(avg_df):
             ax2.scatter(
                 data['x'],
-#                1 - data['fR'],
                 data['fR'],
                 s=200,
                 zorder=3,
                 color='red'
             )
         ax2.set_ylabel('Remaining Rework Fraction')
-#        ax2.set_ylim([0, 2])
         ax2.legend(
             loc='upper left',
             frameon=True
@@ -275,3 +260,20 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         dire = os.path.join(root, str(year))
         if os.path.isdir(dire):
             os.rmdir(dire)
+
+
+def make_gifs(river, root):
+    print(river)
+    fps = sorted(
+        glob.glob(os.path.join(root, f'{river}/*mobility_block*.csv'))
+    )
+    fp_in = os.path.join(
+        root, f'{river}/mask/*block_0.tif'
+    )
+    fp_out = os.path.join(
+        root, f'{river}/{river}_cumulative.gif'
+    )
+    stat_out = os.path.join(
+        root, f'{river}/{river}_mobility_stats.csv'
+    )
+    make_gif(fps, fp_in, fp_out, stat_out)

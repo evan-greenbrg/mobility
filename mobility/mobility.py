@@ -1,135 +1,130 @@
-import argparse
-import glob
 import os
-import platform
-from multiprocessing import set_start_method
-import warnings
-
-from natsort import natsorted
-import ee
-from matplotlib import pyplot as plt
 import numpy as np
-from puller_fun import pull_image_watermasks
-from puller_fun import pull_esa
-from puller_fun import get_paths 
-from mobility_fun import get_mobility_rivers
-from gif_fun import make_gif
+import pandas
+
+from mobility_helpers import clean_esa
+from mobility_helpers import create_mask_shape
 
 
-ee.Initialize()
-warnings.filterwarnings("ignore")
-
-def make_gifs(rivers, root):
-    for river in rivers:
-        print(river)
-        fps = sorted(
-            glob.glob(os.path.join(root, f'{river}/*mobility_block*.csv'))
+def get_mobility_rivers(poly, paths, out, river):
+    print(river)
+    for block, path_list in enumerate(paths):
+        path_list = sorted(path_list)
+    # mask stuff
+        mask = create_mask_shape(
+            poly,
+            river,
+            path_list
         )
-        fp_in = os.path.join(
-            root, f'{river}/mask/*block_0.tif'
+
+        images, metas = clean_esa(
+            poly,
+            river,
+            path_list
         )
-        fp_out = os.path.join(
-            root, f'{river}/{river}_cumulative.gif'
+
+        river_dfs = get_mobility_yearly(
+            images,
+            mask,
         )
-        stat_out = os.path.join(
-            root, f'{river}/{river}_mobility_stats.csv'
-        )
-        make_gif(fps, fp_in, fp_out, stat_out)
 
-
-if __name__ == '__main__':
-    if platform.system() == "Darwin":
-            set_start_method('spawn')
-
-    parser = argparse.ArgumentParser(description='Pull Mobility')
-    parser.add_argument('--poly', metavar='poly', type=str,
-                        help='In path for the geopackage path')
-
-    parser.add_argument('--mask_method', metavar='mask_method', type=str,
-                        choices=['Jones', 'esa', 'Zou'],
-                        help='Do you want to calculate mobility')
-
-    parser.add_argument('--network_method', metavar='network_method', type=str,
-                        choices=['grwl', 'merit', 'largest', 'all'],
-                        default='grwl',
-                        help='what method do you want to use to extract the network')
-
-    parser.add_argument('--network_path', metavar='network_path', type=str,
-                        default=None,
-                        help='Path to network dataset')
-
-    parser.add_argument('--masks', metavar='images', type=str,
-                        choices=['true', 'false'],
-                        help='Do you want to export masks')
-
-    parser.add_argument('--images', metavar='images', type=str,
-                        choices=['true', 'false'],
-                        help='Do you want to export images')
-
-    parser.add_argument('--mobility', metavar='mobility', type=str,
-                        choices=['true', 'false'],
-                        help='Do you want to calculate mobility')
-
-    parser.add_argument('--gif', metavar='gif', type=str,
-                        choices=['true', 'false'],
-                        help='Do you want to make the gif?')
-
-    parser.add_argument('--period', metavar='images', type=str,
-                        choices=[
-                            'annual', 
-                            'quarterly', 
-                            'bankfull', 
-                            'max', 
-                            'min'
-                        ],
-                        help='Do you want to export images')
-
-    parser.add_argument('--out', metavar='out', type=str,
-                        help='output root directory')
-
-    args = parser.parse_args()
-
-    export_images = False
-    if args.images == 'true':
-        export_images = True
-    if args.masks == 'true':
-        if (args.mask_method == 'Jones') or (args.mask_method == 'Zou'):
-            print('Pulling Images')
-            paths = pull_image_watermasks(
-                args.poly, 
-                args.out, 
-                export_images, 
-                args.mask_method, 
-                args.network_method, 
-                args.network_path,
-                args.period
+        full_df = pandas.DataFrame()
+        for year, df in river_dfs.items():
+            rnge = f"{year}_{df.iloc[-1]['year']}"
+            df['dt'] = pandas.to_datetime(
+                df['year'],
+                format='%Y'
             )
-        elif args.method == 'esa':
-            paths = pull_esa(args.poly, args.out)
-    else:
-        paths = get_paths(args.poly, args.out)
+            df['range'] = rnge
 
-    if args.mobility == 'true':
-        print('Pulling Mobility')
-        rivers = get_mobility_rivers(args.poly, paths, args.out)
+            full_df = full_df.append(df)
 
-    if (args.gif == 'true'):
-        print('Making Gif')
-        make_gifs(list(paths.keys()), args.out)
+        out_path = os.path.join(
+            out,
+            river,
+            f'{river}_yearly_mobility_block_{block}.csv'
+        )
+        full_df.to_csv(out_path)
+
+    return river
 
 
+def get_mobility_yearly(images, mask):
 
-# root ="/Users/greenberg/Documents/PHD/Projects/Mobility/Parameter_space/PNG/"
-# rivers = [
-#     'PNG2',
-#     'PNG3',
-#     'PNG4d',
-#     'PNG4u',
-#     'PNG5',
-#     'PNG6',
-#     'PNG7',
-#     'PNG9',
-#     'PNG10',
-# ]
-# make_gifs(rivers, out)
+    A = len(np.where(mask == 1)[1])
+    year_range = list(images.keys())
+    ranges = [year_range[i:] for i, yr in enumerate(year_range)]
+    river_dfs = {}
+    for yrange in ranges:
+        data = {
+            'year': [],
+            'i': [],
+            'D': [],
+            'D/A': [],
+            'Phi': [],
+            'O_Phi': [],
+            'fR': [],
+            'fw_b': [],
+            'fd_b': [],
+        }
+        length = images[yrange[0]].shape[0]
+        width = images[yrange[0]].shape[1]
+        long = len(yrange)
+        all_images = np.empty((length, width, long))
+        years = []
+        for j, year in enumerate(yrange):
+            years.append(year)
+            im = images[str(year)].astype(int)
+            im[mask.mask] = 0
+#            im[where] = 0
+            all_images[:, :, j] = im
 
+        baseline = all_images[:, :, 0]
+
+        w_b = len(np.where(baseline == 1)[0])
+        fb = mask - baseline
+        fw_b = w_b / A
+        fd_b = np.sum(fb) / A
+        Na = A * fd_b
+
+        for j in range(all_images.shape[2]):
+            im = all_images[:, :, j]
+
+            kb = (
+                np.sum(all_images[:, :, :j + 1], axis=(2))
+                + mask
+            )
+            kb[np.where(kb != 1)] = 0
+            Nb = np.sum(kb)
+#            fR = 1 - (Nb / (A * fd_b))
+            fR = (Na / w_b) - (Nb / w_b)
+
+            # Calculate D - EQ. (1)
+            D = np.sum(np.abs(np.subtract(baseline, im)))
+
+            # Calculate D / A
+            D_A = D / A
+
+            # Calculate Phi
+            w_t = len(np.where(im == 1)[0])
+            fw_t = w_t / A
+            fd_t = (A - w_t) / A
+
+            PHI = (fw_b * fd_t) + (fd_b * fw_t)
+
+            # Calculate O_Phi
+            O_PHI = 1 - (D / (A * PHI))
+
+            data['i'].append(j)
+            data['D'].append(D)
+            data['D/A'].append(D_A)
+            data['Phi'].append(PHI)
+            data['O_Phi'].append(O_PHI)
+            data['fR'].append(fR)
+            data['fw_b'].append(fw_b)
+            data['fd_b'].append(fd_b)
+
+        data['year'] = years
+        river_dfs[yrange[0]] = pandas.DataFrame(data=data)
+
+    return river_dfs
