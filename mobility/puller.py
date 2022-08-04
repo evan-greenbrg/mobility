@@ -1,5 +1,5 @@
-import time
 import glob
+import time
 import os
 import ee
 from scipy import stats
@@ -10,6 +10,8 @@ from rasterio.merge import merge
 import numpy as np
 from natsort import natsorted
 import warnings
+import requests
+import urllib3
 
 from watermask_methods import get_water_Jones
 from watermask_methods import get_water_Zou
@@ -215,14 +217,35 @@ def pull_year_mask(year, poly, root, name, chunk_i, block_i, pull_month,
         year,
         f'image_block_{block_i}_poly_{chunk_i}'
     )
-    _ = geemap.ee_export_image(
+    _ = ee_export_image(
         image,
         filename=out,
         scale=30,
         file_per_band=False
     )
 
-    ds = rasterio.open(out)
+    # This is the try block that I was attempting
+    #    retry = 0
+    #    not_downloaded = True
+    #    while not_downloaded:
+    #        if retry == 3:
+    #            raise RuntimeError('Too many retries')
+    #        try:
+    #            _ = ee_export_image(
+    #                image,
+    #                filename=out,
+    #                scale=30,
+    #                file_per_band=False
+    #            )
+    #            not_downloaded = False
+    #        except:
+    #            time.sleep(30)
+    #            retry += 1
+
+    if os.path.exists(out):
+        ds = rasterio.open(out)
+    else:
+        raise RuntimeError('File not downloaded')
 
     if mask_method == 'Jones':
         water = get_water_Jones(ds).astype(int)
@@ -299,8 +322,9 @@ def pull_watermasks(polygon_path, root, river, export_images,
     print(pull_months)
 
     # Iterate through all the years and all of the pull_months
-    tasks = []
     for year_i, year in enumerate(years):
+        time.sleep(10)
+        tasks = []
         os.makedirs(
             os.path.join(
                 year_root, str(year),
@@ -317,7 +341,8 @@ def pull_watermasks(polygon_path, root, river, export_images,
                         mask_method, network_method, networks[poly_i]
                     )
                 ))
-    multiprocess(tasks)
+        results = multiprocess(tasks)
+        print('results')
 
     river_paths = []
     for pull_i, pull_month in enumerate(pull_months):

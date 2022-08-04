@@ -86,7 +86,7 @@ if __name__ == '__main__':
         elif args.method == 'esa':
             paths = pull_esa(args.poly, args.out)
     else:
-        paths = get_paths(args.poly, args.out, args.river, args.river)
+        paths = get_paths(args.poly, args.out, args.river)
 
     if args.mobility == 'true':
         print('Pulling Mobility')
