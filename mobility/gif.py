@@ -86,31 +86,27 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         agrs.append(ag_save)
         combos.append(combo)
 
+    # Make avg_df
     avg_df = full_df.groupby('x').median().reset_index(drop=False).iloc[:20]
     avg_df = avg_df.dropna(how='any')
 
+    # make max and min dfs
+    max_df = full_df.groupby('x').max().reset_index(drop=False).iloc[:20]
+    max_df = max_df.dropna(how='any')
+
+    min_df = full_df.groupby('x').min().reset_index(drop=False).iloc[:20]
+    min_df = min_df.dropna(how='any')
+
     am_3, m_3, pm_3, o_r2_3 = fit_curve(
-        avg_df['x'],
-        avg_df['O_Phi'].to_numpy(),
+        max_df['x'],
+        max_df['O_Phi'].to_numpy(),
         func_3_param
     )
 
     ar_3, r_3, pr_3, f_r2_3 = fit_curve(
-        avg_df['x'],
-        avg_df['fR'].to_numpy(),
+        min_df['x'],
+        min_df['fR'].to_numpy(),
         func_3_param
-    )
-
-    am_2, m_2, pm_2, o_r2_2 = fit_curve(
-        avg_df['x'],
-        avg_df['O_Phi'].to_numpy(),
-        func_2_param
-    )
-
-    ar_2, r_2, pr_2, f_r2_2 = fit_curve(
-        avg_df['x'],
-        avg_df['fR'].to_numpy(),
-        func_2_param
     )
 
     stats = pandas.DataFrame(data={
@@ -164,27 +160,27 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         )
 
         ax2.plot(
-            avg_df['x'],
+            min_df['x'],
             f_pred_3,
             zorder=5,
             color='green',
             label='3 Parameter'
         )
         ax2.scatter(
-            avg_df['x'],
-            avg_df['fR'],
+            min_df['x'],
+            min_df['fR'],
             zorder=4,
             s=70,
             facecolor='black',
             edgecolor='black'
         )
-        ax2.plot(
-            avg_df['x'],
-            avg_df['fR'],
-            zorder=4,
-            color='black',
-            label='average'
-        )
+#        ax2.plot(
+#            avg_df['x'],
+#            avg_df['fR'],
+#            zorder=4,
+#            color='black',
+#            label='average'
+#        )
         ax2.scatter(
             full_df['x'],
             full_df['fR'],
@@ -208,26 +204,26 @@ def make_gif(fps, fp_in, fp_out, stat_out):
         )
 
         ax3.plot(
-            avg_df['x'],
+            max_df['x'],
             o_pred_3,
             zorder=5,
             color='blue'
         )
         ax3.scatter(
-            avg_df['x'],
-            avg_df['O_Phi'],
+            max_df['x'],
+            max_df['O_Phi'],
             zorder=4,
             s=70,
             facecolor='black',
             edgecolor='black'
         )
-        ax3.plot(
-            avg_df['x'],
-            avg_df['O_Phi'],
-            zorder=4,
-            color='black',
-            label='average'
-        )
+#        ax3.plot(
+#            avg_df['x'],
+#            avg_df['O_Phi'],
+#            zorder=4,
+#            color='black',
+#            label='average'
+#        )
         ax3.scatter(
             full_df['x'],
             full_df['O_Phi'],

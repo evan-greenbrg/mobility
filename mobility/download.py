@@ -16,7 +16,7 @@ def ee_export_image(
     crs=None,
     region=None,
     file_per_band=False,
-    timeout=300,
+    timeout=200,
     proxies=None,
 ):
     """Exports an ee.Image as a GeoTIFF.
@@ -35,7 +35,7 @@ def ee_export_image(
         print("The ee_object must be an ee.Image.")
         return
 
-    time.sleep(1)
+    time.sleep(5)
 
     filename = os.path.abspath(filename)
     basename = os.path.basename(filename)
@@ -66,18 +66,34 @@ def ee_export_image(
             print(e)
             raise ee.EEException
         print(f"Downloading data from {url}\nPlease wait ...")
-        r = requests.get(url, stream=True, timeout=timeout, proxies=proxies)
-        print('STATUS CODE')
-        print(r.status_code)
 
-        if r.status_code != 200:
-            print("An error occurred while downloading.")
-            raise ee.EEException
-            return r.status_code
+        retry = 0
+        not_downloaded = True
+        while not_downloaded:
+            if retry == 3:
+                raise RuntimeError('Too many retries')
+            try:
+                with requests.get(
+                    url, stream=False, timeout=timeout, proxies=proxies
+                ) as r:
+                    print('STATUS CODE')
+                    print(r.status_code)
 
-        with open(filename_zip, "wb") as fd:
-            for chunk in r.iter_content(chunk_size=1024):
-                fd.write(chunk)
+                if r.status_code != 200:
+                    print("Status code Error")
+                    raise ee.EEException
+                    return r.status_code
+
+                with open(filename_zip, "wb") as fd:
+                    for chunk in r.iter_content(chunk_size=1024):
+                        fd.write(chunk)
+
+                not_downloaded = False
+
+            except:
+                time.sleep(30)
+                retry += 1
+                print(retry)
 
     except Exception:
         print("An error occurred while downloading.")
@@ -86,6 +102,7 @@ def ee_export_image(
         return
 
     try:
+        print('Unzipping')
         with zipfile.ZipFile(filename_zip) as z:
             z.extractall(os.path.dirname(filename))
         os.remove(filename_zip)
